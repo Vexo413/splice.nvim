@@ -1,3 +1,5 @@
+print("Splice started")
+
 local M = {}
 
 M.config = {
@@ -40,5 +42,7 @@ function M.setup(user_config)
     require("splice.history").setup(M.config)
     require("splice.session").setup(M.config)
 end
+
+print("Splice config returned")
 
 return M

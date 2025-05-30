@@ -47,7 +47,7 @@ local function ai_chat(prompt, context, cb)
             model = model,
             messages = {
                 { role = "system", content = "You are a helpful coding assistant." },
-                { role = "user", content = prompt },
+                { role = "user",   content = prompt },
             },
             -- Optionally add context as a system message or tool call
         }
@@ -130,6 +130,7 @@ local function prompt_input()
 end
 
 function M.setup(cfg)
+    print("Sidebar setup")
     config = cfg
     vim.api.nvim_set_keymap("n", "<leader>as", "<cmd>lua require('splice.sidebar').toggle()<CR>",
         { noremap = true, silent = true })
