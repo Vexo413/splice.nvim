@@ -135,6 +135,9 @@ function M.setup(cfg)
         { noremap = true, silent = true })
     vim.api.nvim_set_keymap("n", "<leader>ap", "<cmd>lua require('splice.sidebar').prompt()<CR>",
         { noremap = true, silent = true })
+    vim.api.nvim_create_user_command("Splice", function()
+        require('splice.sidebar').toggle()
+    end, { desc = "Toggle Splice AI Sidebar" })
 end
 
 function M.toggle()
