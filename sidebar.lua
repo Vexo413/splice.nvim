@@ -142,6 +142,7 @@ function M.setup(cfg)
 end
 
 function M.toggle()
+    print("Sidebar toggle")
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         close_sidebar()
     else
