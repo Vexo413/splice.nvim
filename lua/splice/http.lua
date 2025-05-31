@@ -79,6 +79,7 @@ function M.ollama_request(opts, callback)
                     table.insert(full_content, obj.message.content)
                     accumulated_text = table.concat(full_content, "")
                     -- Provide partial output to callback (streaming)
+                    vim.notify("[DEBUG] Callback type: " .. type(callback), vim.log.levels.DEBUG)
                     callback({
                         text = accumulated_text,
                         model = model,
@@ -92,6 +93,7 @@ function M.ollama_request(opts, callback)
         callback = vim.schedule_wrap(function(res)
             -- Final callback when stream ends
             if not res or res.status ~= 200 then
+                vim.notify("[DEBUG] Callback type: " .. type(callback), vim.log.levels.DEBUG)
                 callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
                 return
             end
@@ -108,6 +110,7 @@ function M.ollama_request(opts, callback)
                 return
             end
 
+            vim.notify("[DEBUG] Callback type: " .. type(callback), vim.log.levels.DEBUG)
             callback({
                 text = table.concat(full_content, ""),
                 model = model,
