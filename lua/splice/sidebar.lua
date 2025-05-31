@@ -144,14 +144,11 @@ local function ai_chat(prompt, context, cb)
         provider = config.provider,
         timeout = 120000, -- Increase timeout to 2 minutes for Ollama
     }, function(result, err)
+        -- Streaming support: update chat_history as tokens arrive
         if err then
-            print("error")
-            -- Handle error
             vim.schedule(function()
                 local error_message = "Error: " .. (err or "Unknown error")
                 vim.notify("AI request failed: " .. err, vim.log.levels.ERROR)
-
-                -- Use the entry_index we saved earlier, or find it if not available
                 if not entry_index then
                     entry_index = find_chat_entry()
                 end
@@ -159,8 +156,6 @@ local function ai_chat(prompt, context, cb)
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-
-                -- Call the callback with the error message
                 if type(cb) == "function" then
                     cb(error_message)
                 end
@@ -168,14 +163,10 @@ local function ai_chat(prompt, context, cb)
             return
         end
 
-        -- Ensure we have a valid result with text
         if not result or not result.text then
-            print("empty")
             vim.schedule(function()
                 local error_message = "Error: Empty response from AI provider"
                 vim.notify(error_message, vim.log.levels.ERROR)
-
-                -- Use the entry_index we saved earlier, or find it if not available
                 if not entry_index then
                     entry_index = find_chat_entry()
                 end
@@ -183,8 +174,6 @@ local function ai_chat(prompt, context, cb)
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-
-                -- Call the callback with the error message
                 if type(cb) == "function" then
                     cb(error_message)
                 end
@@ -192,10 +181,8 @@ local function ai_chat(prompt, context, cb)
             return
         end
 
-        -- Process successful response
+        -- Streaming: update sidebar as tokens arrive
         vim.schedule(function()
-            print("yay")
-            -- Use the entry_index we saved earlier, or find it if not available
             if not entry_index then
                 entry_index = find_chat_entry()
             end
@@ -206,24 +193,24 @@ local function ai_chat(prompt, context, cb)
                 render_sidebar()
             end
 
-            -- Call the callback with the result text
-            if type(cb) == "function" then
-                cb(result.text)
-            end
-
-            -- Save the interaction to history module if available
-            pcall(function()
-                local history_module = require('splice.history')
-                if history_module and history_module.add_entry then
-                    history_module.add_entry({
-                        prompt = prompt,
-                        response = result.text,
-                        provider = result.provider,
-                        model = result.model,
-                        timestamp = os.time(),
-                    })
+            -- Only call cb and save to history on final output (not streaming)
+            if not result.streaming then
+                if type(cb) == "function" then
+                    cb(result.text)
                 end
-            end)
+                pcall(function()
+                    local history_module = require('splice.history')
+                    if history_module and history_module.add_entry then
+                        history_module.add_entry({
+                            prompt = prompt,
+                            response = result.text,
+                            provider = result.provider,
+                            model = result.model,
+                            timestamp = os.time(),
+                        })
+                    end
+                end)
+            end
         end)
     end)
 

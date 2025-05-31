@@ -22,7 +22,8 @@ local function fetch_ai_suggestion(prompt, context, cb)
         vim.schedule(function()
             cb("Generating suggestion...")
         end)
-        
+
+        local last_text = ""
         -- Call the AI provider through our HTTP client
         http.ai_request({
             config = config,
@@ -37,11 +38,22 @@ local function fetch_ai_suggestion(prompt, context, cb)
                 end)
                 return
             end
-            
-            -- Process successful response
+
+            -- Streamed output: update as tokens arrive
+            if result.streaming then
+                if result.text ~= last_text then
+                    last_text = result.text
+                    vim.schedule(function()
+                        cb(result.text)
+                    end)
+                end
+                return
+            end
+
+            -- Final output
             vim.schedule(function()
                 cb(result.text)
-                
+
                 -- Save the interaction to history module if available
                 pcall(function()
                     local history_module = require('splice.history')
@@ -59,7 +71,7 @@ local function fetch_ai_suggestion(prompt, context, cb)
             end)
         end)
     end)
-    
+
     if not status then
         vim.notify("Error fetching AI suggestion: " .. tostring(err), vim.log.levels.ERROR)
         vim.schedule(function()
@@ -95,20 +107,23 @@ local function on_trigger()
                 vim.notify("Buffer is no longer valid", vim.log.levels.WARN)
                 return
             end
-            
+
             show_inline_suggestion(bufnr, row - 1, suggestion)
-            -- Keymaps for accept/modify/cancel
-            vim.keymap.set("n", "<Tab>", function()
-                if vim.api.nvim_buf_is_valid(bufnr) then
-                    vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { suggestion })
-                    clear_virtual_text(bufnr)
-                end
-            end, { buffer = bufnr, nowait = true })
-            vim.keymap.set("n", "<Esc>", function()
-                if vim.api.nvim_buf_is_valid(bufnr) then
-                    clear_virtual_text(bufnr)
-                end
-            end, { buffer = bufnr, nowait = true })
+            -- Keymaps for accept/modify/cancel (set only once per trigger)
+            if not M._inline_keys_set then
+                vim.keymap.set("n", "<Tab>", function()
+                    if vim.api.nvim_buf_is_valid(bufnr) then
+                        vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { suggestion })
+                        clear_virtual_text(bufnr)
+                    end
+                end, { buffer = bufnr, nowait = true })
+                vim.keymap.set("n", "<Esc>", function()
+                    if vim.api.nvim_buf_is_valid(bufnr) then
+                        clear_virtual_text(bufnr)
+                    end
+                end, { buffer = bufnr, nowait = true })
+                M._inline_keys_set = true
+            end
         end)
     end)
     

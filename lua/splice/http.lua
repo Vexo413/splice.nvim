@@ -37,7 +37,7 @@ local function json_decode(str)
     return vim.fn.json_decode(str)
 end
 
--- Ollama async request using plenary.curl
+-- Ollama async request using plenary.curl, with streaming support
 function M.ollama_request(opts, callback)
     local config = opts.config or {}
     local prompt = opts.prompt
@@ -46,13 +46,11 @@ function M.ollama_request(opts, callback)
     local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
     local context_message = "You are a helpful coding assistant. Here is the context of the users workspace: " ..
         context
-    print(context)
 
     local messages = {
         { role = "system", content = context_message },
         { role = "user",   content = prompt }
     }
-
 
     local payload = {
         model = model,
@@ -60,22 +58,49 @@ function M.ollama_request(opts, callback)
         options = {
             temperature = 0.7,
             top_p = 0.9,
-        }
+        },
+        stream = true, -- Enable streaming
     }
+
+    local full_content = {}
+    local accumulated_text = ""
 
     curl.post(endpoint .. "/api/chat", {
         body = json_encode(payload),
         headers = { ["Content-Type"] = "application/json" },
+        stream = true,
+        -- on_data is called with each chunk as it arrives
+        on_data = vim.schedule_wrap(function(chunk, _)
+            if not chunk or chunk == "" then return end
+            -- Ollama streams JSON objects, one per line
+            for line in chunk:gmatch("[^\r\n]+") do
+                local ok, obj = pcall(json_decode, line)
+                if ok and obj and obj.message and obj.message.content then
+                    table.insert(full_content, obj.message.content)
+                    accumulated_text = table.concat(full_content, "")
+                    -- Provide partial output to callback (streaming)
+                    callback({
+                        text = accumulated_text,
+                        model = model,
+                        provider = "ollama",
+                        raw_response = line,
+                        streaming = true,
+                    }, nil)
+                end
+            end
+        end),
         callback = vim.schedule_wrap(function(res)
+            -- Final callback when stream ends
             if not res or res.status ~= 200 then
                 callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
                 return
             end
 
-            -- Try to extract all message.content fields from the raw output
-            local full_content = {}
-            for content in (res.body or ""):gmatch([["content"%s*:%s*"([^"]*)"]]) do
-                table.insert(full_content, content)
+            -- If nothing was streamed, try to extract from body (fallback)
+            if #full_content == 0 and res.body then
+                for content in (res.body or ""):gmatch([["content"%s*:%s*"([^"]*)"]]) do
+                    table.insert(full_content, content)
+                end
             end
 
             if #full_content == 0 then
@@ -88,9 +113,9 @@ function M.ollama_request(opts, callback)
                 model = model,
                 provider = "ollama",
                 raw_response = res.body,
+                streaming = false,
             }, nil)
         end)
-
     })
 end
 

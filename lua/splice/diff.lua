@@ -105,56 +105,58 @@ Modified code:
             end)
             return
         end
-        
+
         -- Process the response text into lines
         local response_text = result.text
-        
+
         -- Clean up the response by removing markdown code blocks if present
         response_text = response_text:gsub("```[%w%+%-_]*\n", ""):gsub("```", "")
-        
+
         -- Split into lines
         local modified_lines = {}
         for line in response_text:gmatch("([^\n]*)\n?") do
             table.insert(modified_lines, line)
         end
-        
+
         -- Remove empty lines at the beginning and end
         while modified_lines[1] and modified_lines[1]:match("^%s*$") do
             table.remove(modified_lines, 1)
         end
-        
+
         while modified_lines[#modified_lines] and modified_lines[#modified_lines]:match("^%s*$") do
             table.remove(modified_lines)
         end
-        
+
         -- If no modified lines, use original
         if #modified_lines == 0 then
             modified_lines = vim.deepcopy(orig)
             table.insert(modified_lines, "-- No changes made by AI")
         end
-        
+
         -- Create a commentary
-        local commentary = "Changes suggested by " .. result.provider .. "/" .. result.model ..
+        local commentary = "Changes suggested by " .. (result.provider or "AI") .. (result.model and ("/" .. result.model) or "") ..
                            " based on: " .. prompt
-        
-        -- Save to history
-        pcall(function()
-            local history_module = require('splice.history')
-            if history_module and history_module.add_entry then
-                history_module.add_entry({
-                    prompt = prompt,
-                    response = response_text,
-                    provider = result.provider,
-                    model = result.model,
-                    timestamp = os.time(),
-                    type = "diff",
-                    original = orig,
-                    modified = modified_lines,
-                })
-            end
-        end)
-        
-        -- Return the result through callback
+
+        -- Save to history only on final output
+        if not result.streaming then
+            pcall(function()
+                local history_module = require('splice.history')
+                if history_module and history_module.add_entry then
+                    history_module.add_entry({
+                        prompt = prompt,
+                        response = response_text,
+                        provider = result.provider,
+                        model = result.model,
+                        timestamp = os.time(),
+                        type = "diff",
+                        original = orig,
+                        modified = modified_lines,
+                    })
+                end
+            end)
+        end
+
+        -- Return the result through callback (streaming: update window as tokens arrive)
         vim.schedule(function()
             cb(orig, modified_lines, commentary)
         end)
