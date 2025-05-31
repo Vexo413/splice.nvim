@@ -237,6 +237,9 @@ render_history = function()
             else
                 table.insert(lines, "You: " .. prompt_text)
             end
+            
+            -- Add a gap line between user question and AI response
+            table.insert(lines, "")
 
             -- Format the response, handling nil values
             local response_text = entry.response
