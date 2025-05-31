@@ -521,9 +521,6 @@ local function clear_prompt_buffer()
     -- Only proceed if prompt buffer is valid
     if is_prompt_valid() then
         vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-            "-- Type your prompt here and save (:w) or press Ctrl+S to submit",
-            "-- Press <leader>af to switch focus to the response area",
-            "-- Press Ctrl+L to clear the prompt",
             ""
         })
         -- Set cursor at the end of the buffer
@@ -725,7 +722,7 @@ open_sidebar = function()
     -- Create a horizontal split at the bottom for the prompt area (roughly 20% of height)
     vim.api.nvim_win_call(history_win, function()
         vim.cmd("aboveleft split")
-        vim.cmd("resize -10")
+        vim.cmd("resize +10")
     end)
 
     -- Get the new window and set the prompt buffer
