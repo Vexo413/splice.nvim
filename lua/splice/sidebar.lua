@@ -541,7 +541,7 @@ local function submit_prompt()
     -- Filter out comment lines and empty lines
     local prompt_lines = {}
     for _, line in ipairs(lines) do
-        if not line:match("^%s*--") and line:match("%S") then
+        if line:match("%S") then
             table.insert(prompt_lines, line)
         end
     end
@@ -724,7 +724,7 @@ open_sidebar = function()
 
     -- Create a horizontal split at the bottom for the prompt area (roughly 20% of height)
     vim.api.nvim_win_call(history_win, function()
-        vim.cmd("split")
+        vim.cmd("aboveleft split")
         vim.cmd("resize -10")
     end)
 
