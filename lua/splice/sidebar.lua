@@ -528,6 +528,7 @@ local function submit_prompt()
     local prompt_lines = {}
     for _, line in ipairs(lines) do
         if not line:match("^%s*--") and line:match("%S") then
+            print(line)
             table.insert(prompt_lines, line)
         end
     end
