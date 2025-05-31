@@ -111,7 +111,6 @@ function M.ai_request(opts, callback)
     local config = opts.config or {}
     local provider = opts.provider or (config.provider or "ollama")
     if provider == "ollama" then
-        print(config)
         return M.ollama_request(opts, callback)
     elseif provider == "openai" then
         return M.openai_request(opts, callback)
