@@ -16,7 +16,6 @@ local function gather_context_as_text()
     local bufs = vim.api.nvim_list_bufs()
 
     table.insert(context_lines, "{")
-    table.insert(context_lines, "  ],")
     table.insert(context_lines, "  chat_history: [")
     for _, entry in ipairs(chat_history) do
         table.insert(context_lines, "    {")
