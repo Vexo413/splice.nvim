@@ -23,7 +23,7 @@ local function gather_context()
             })
         end
     end
-    print(buffers[1].lines)
+    print(buffers[1].lines[1])
     -- TODO: Add LSP, git, file tree context
     return { buffers = buffers }
 end
