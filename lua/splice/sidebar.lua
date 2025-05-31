@@ -969,11 +969,12 @@ end
 
 -- Submit the current prompt (exposed for keymap)
 function M.submit_current_prompt()
-    print("hello?")
     local status, err = pcall(function()
         if is_prompt_valid() then
+            print("hello?")
             submit_prompt()
         else
+            print("err?")
             vim.notify("[splice.nvim] Prompt buffer is not valid", vim.log.levels.WARN)
         end
     end)
