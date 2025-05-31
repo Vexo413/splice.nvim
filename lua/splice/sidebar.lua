@@ -523,17 +523,13 @@ end
 -- Function to submit the prompt content
 local function submit_prompt()
     local lines = vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false)
+    print("hello 1")
     -- Filter out comment lines and empty lines
     local prompt_lines = {}
     for _, line in ipairs(lines) do
-        -- Include lines that:
-        -- 1. Don't start with -- (not comments)
-        -- 2. Have at least one non-whitespace character
-        local is_comment = line:match("^%s*--")
-        local has_content = line:match("%S")
-        if not is_comment then
+        if not line:match("^%s*--") then
             print("no comment")
-            if has_content then
+            if line:match("%S") then
                 print("has content")
                 table.insert(prompt_lines, line)
             end
@@ -1007,8 +1003,6 @@ function M.clear_current_prompt()
             if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
                 local line_count = vim.api.nvim_buf_line_count(prompt_buf)
                 vim.api.nvim_win_set_cursor(prompt_win, { line_count, 0 })
-                -- Debugging info
-                -- vim.notify("Prompt buffer has " .. line_count .. " lines", vim.log.levels.INFO)
             end
         else
             vim.notify("[splice.nvim] Prompt buffer is not valid", vim.log.levels.WARN)
