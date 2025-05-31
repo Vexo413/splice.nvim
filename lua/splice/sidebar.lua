@@ -104,7 +104,7 @@ local function process_code_blocks(text)
                 local start_idx = #result - #code_block_lines
                 local end_idx = #result
 
-                -- Add metadata for highlighting
+                -- Add metadata for highlighting with buffer reference
                 local start_line = #result - #code_block_lines + 1
                 _G.splice_code_blocks = _G.splice_code_blocks or {}
                 table.insert(_G.splice_code_blocks, {
@@ -112,7 +112,8 @@ local function process_code_blocks(text)
                     lang = current_lang,
                     start_line = start_line,
                     end_line = start_line + #code_block_lines - 1,
-                    lines = code_block_lines
+                    lines = code_block_lines,
+                    processed = false
                 })
             end
 
@@ -142,64 +143,59 @@ local function apply_code_block_highlighting(buf)
     -- Skip if disabled in config or if no code blocks to process
     if not config.highlight_code_blocks or not _G.splice_code_blocks then return end
 
-    -- Process code blocks that belong to this buffer
+    -- Process code blocks that belong to this buffer and haven't been processed yet
     local blocks_to_process = {}
     for i, block in ipairs(_G.splice_code_blocks) do
-        if block.buffer == buf then
+        if block.buffer == buf and not block.processed then
             table.insert(blocks_to_process, block)
-            -- Remove from global table after processing
-            _G.splice_code_blocks[i] = nil
+            -- Mark as processed to avoid reprocessing
+            _G.splice_code_blocks[i].processed = true
         end
     end
 
-    -- Clean up the global table
+    -- Clean up old processed blocks periodically
     local new_blocks = {}
     for _, block in ipairs(_G.splice_code_blocks) do
-        if block then
+        if block and (not block.processed or vim.api.nvim_buf_is_valid(block.buffer)) then
             table.insert(new_blocks, block)
         end
     end
     _G.splice_code_blocks = new_blocks
 
-    -- Apply highlighting to each block
+    -- Apply highlighting to each block using our custom approach
     for _, block in ipairs(blocks_to_process) do
-        -- Create a temporary buffer with the right filetype
-        local temp_buf = vim.api.nvim_create_buf(false, true)
-
-        -- Set the buffer's filetype
-        pcall(function()
-            vim.api.nvim_buf_set_option(temp_buf, "filetype", block.lang)
-            vim.api.nvim_buf_set_lines(temp_buf, 0, -1, false, block.lines)
-
-            -- Force syntax highlighting
-            vim.cmd("syntax on")
-
-            -- Wait for syntax highlighting to be applied
-            vim.defer_fn(function()
-                -- Copy highlighting from temp buffer to sidebar
-                if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_is_valid(temp_buf) then
-                    for i = 1, #block.lines do
-                        local line_idx = block.start_line + i - 1
-
-                        -- Get highlighting from temp buffer
-                        local hl = vim.api.nvim_buf_get_extmarks(
-                            temp_buf, -1, { i - 1, 0 }, { i - 1, -1 }, { details = true })
-
-                        -- Apply to sidebar buffer
-                        for _, mark in ipairs(hl) do
-                            local id, row, col, details = unpack(mark)
-                            if details and details.hl_group then
-                                vim.api.nvim_buf_add_highlight(
-                                    buf, 0, details.hl_group, line_idx, col, col + details.end_col)
-                            end
+        if vim.api.nvim_buf_is_valid(buf) and block.lang and block.lang ~= "" then
+            -- Apply language-specific highlighting within the code block region
+            pcall(function()
+                -- Create namespace for this code block
+                local ns_id = vim.api.nvim_create_namespace("splice_code_" .. block.lang)
+                
+                -- Apply basic syntax highlighting based on language
+                local hl_group = "String"  -- Default fallback
+                if block.lang == "lua" then
+                    hl_group = "Keyword"
+                elseif block.lang == "python" or block.lang == "py" then
+                    hl_group = "Function"
+                elseif block.lang == "javascript" or block.lang == "js" or block.lang == "typescript" or block.lang == "ts" then
+                    hl_group = "Identifier"
+                elseif block.lang == "bash" or block.lang == "sh" then
+                    hl_group = "Special"
+                elseif block.lang == "vim" then
+                    hl_group = "Statement"
+                end
+                
+                -- Apply highlighting to the code block content
+                for i = 1, #block.lines do
+                    local line_idx = block.start_line + i - 1
+                    if line_idx < vim.api.nvim_buf_line_count(buf) then
+                        local line_content = vim.api.nvim_buf_get_lines(buf, line_idx, line_idx + 1, false)[1] or ""
+                        if line_content:match("%S") then  -- Only highlight non-empty lines
+                            vim.api.nvim_buf_add_highlight(buf, ns_id, hl_group, line_idx, 0, -1)
                         end
                     end
                 end
-
-                -- Clean up temporary buffer
-                vim.api.nvim_buf_delete(temp_buf, { force = true })
-            end, 100) -- Small delay to ensure syntax is processed
-        end)
+            end)
+        end
     end
 end
 
@@ -489,21 +485,74 @@ function configure_history_buffer(buf)
         vim.api.nvim_buf_call(buf, function()
             vim.cmd("syntax on")
 
-            -- Define custom syntax for code blocks
+            -- Define comprehensive markdown syntax highlighting
             vim.cmd([[
-                " Only apply code block highlighting to fenced code blocks
-                syntax region spliceCodeBlock start=/^\s*```/ end=/^\s*```/ contains=spliceCodeLang
-                syntax match spliceCodeLang /```\w\+/ contained
-                highlight link spliceCodeBlock Comment
-                highlight link spliceCodeLang Keyword
+                " Headers
+                syntax match spliceH1 /^#\s.*$/ contains=spliceHeaderHash
+                syntax match spliceH2 /^##\s.*$/ contains=spliceHeaderHash
+                syntax match spliceH3 /^###\s.*$/ contains=spliceHeaderHash
+                syntax match spliceH4 /^####\s.*$/ contains=spliceHeaderHash
+                syntax match spliceH5 /^#####\s.*$/ contains=spliceHeaderHash
+                syntax match spliceH6 /^######\s.*$/ contains=spliceHeaderHash
+                syntax match spliceHeaderHash /^#\+/ contained
                 
-                " Use a simpler syntax highlighting approach that's more compatible
+                " Bold text
+                syntax region spliceBold start=/\*\*/ end=/\*\*/ oneline
+                syntax region spliceBold start=/__/ end=/__/ oneline
+                
+                " Italic text
+                syntax region spliceItalic start=/\*[^*]/ end=/[^*]\*/ oneline
+                syntax region spliceItalic start=/_[^_]/ end=/[^_]_/ oneline
+                
+                " Inline code
+                syntax region spliceInlineCode start=/`/ end=/`/ oneline
+                
+                " Code blocks (fenced) - improved pattern matching
+                syntax region spliceCodeBlock start=/^\s*```\w*/ end=/^\s*```/ contains=spliceCodeLang,spliceCodeContent
+                syntax match spliceCodeLang /```\w\+/ contained nextgroup=spliceCodeContent
+                syntax match spliceCodeContent /.*/ contained
+                
+                " Links
+                syntax region spliceLink start=/\[/ end=/\]/ nextgroup=spliceLinkUrl
+                syntax region spliceLinkUrl start=/(/ end=/)/ contained
+                
+                " Lists
+                syntax match spliceListBullet /^\s*[-*+]\s/ 
+                syntax match spliceListNumber /^\s*\d\+\.\s/
+                
+                " Blockquotes
+                syntax match spliceBlockquote /^\s*>\s.*$/
+                
+                " Horizontal rules
+                syntax match spliceHorizontalRule /^\s*\(-\s*\)\{3,\}$/
+                syntax match spliceHorizontalRule /^\s*\(\*\s*\)\{3,\}$/
+                syntax match spliceHorizontalRule /^\s*\(_\s*\)\{3,\}$/
+                
                 " Define highlighting for user questions and AI responses
                 syntax match spliceUserQuestion /^You:.*$/
                 syntax match spliceAIResponse /^AI.*$/
                 syntax match spliceAIResponseCont /^\s\+.*$/
                 
-                " Apply highlighting (with fallbacks for different Neovim versions)
+                " Apply highlighting colors
+                highlight default link spliceH1 Title
+                highlight default link spliceH2 Title
+                highlight default link spliceH3 Title
+                highlight default link spliceH4 Title
+                highlight default link spliceH5 Title
+                highlight default link spliceH6 Title
+                highlight default link spliceHeaderHash Comment
+                highlight default link spliceBold Bold
+                highlight default link spliceItalic Italic
+                highlight default link spliceInlineCode String
+                highlight default link spliceCodeBlock Comment
+                highlight default link spliceCodeLang Keyword
+                highlight default link spliceCodeContent Constant
+                highlight default link spliceLink Underlined
+                highlight default link spliceLinkUrl Comment
+                highlight default link spliceListBullet Special
+                highlight default link spliceListNumber Special
+                highlight default link spliceBlockquote Comment
+                highlight default link spliceHorizontalRule Comment
                 highlight default link spliceUserQuestion Statement
                 highlight default link spliceAIResponse Normal
                 highlight default link spliceAIResponseCont Normal
