@@ -528,7 +528,7 @@ local function submit_prompt()
     local prompt_lines = {}
     for _, line in ipairs(lines) do
         print("line:", line)
-        if not line:match("^%s*--") then
+        if line:match("^%s*--") then
             print("no comment")
             if line:match("%S") then
                 print("has content")
