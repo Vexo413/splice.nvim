@@ -2,6 +2,7 @@ local M = {}
 local config
 local sidebar_buf, sidebar_win
 local chat_history = {}
+local http = require('splice.http')
 
 local function gather_context()
     -- Gather open buffers, LSP symbols, git status, etc.
@@ -20,63 +21,53 @@ local function gather_context()
 end
 
 local function ai_chat(prompt, context, cb)
-    -- Use config.provider and selected model for AI backend call
-    local provider = config.provider or "ollama"
-    local model
-    local endpoint
-    local headers = {}
-    local body = {}
-
-    if provider == "ollama" then
-        endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
-        model = (config.ollama and config.ollama.default_model) or "codellama"
-        -- Example: POST /api/generate
-        body = {
-            model = model,
-            prompt = prompt,
-            context = context,
-        }
-    elseif provider == "openai" then
-        endpoint = (config.openai and config.openai.endpoint) or "https://api.openai.com/v1"
-        model = (config.openai and config.openai.default_model) or "gpt-4"
-        headers = {
-            ["Authorization"] = "Bearer " .. (config.openai and config.openai.api_key or ""),
-            ["Content-Type"] = "application/json",
-        }
-        body = {
-            model = model,
-            messages = {
-                { role = "system", content = "You are a helpful coding assistant." },
-                { role = "user",   content = prompt },
-            },
-            -- Optionally add context as a system message or tool call
-        }
-        endpoint = endpoint .. "/chat/completions"
-    elseif provider == "anthropic" then
-        endpoint = (config.anthropic and config.anthropic.endpoint) or "https://api.anthropic.com/v1"
-        model = (config.anthropic and config.anthropic.default_model) or "claude-3-opus-20240229"
-        headers = {
-            ["x-api-key"] = (config.anthropic and config.anthropic.api_key or ""),
-            ["Content-Type"] = "application/json",
-        }
-        body = {
-            model = model,
-            messages = {
-                { role = "user", content = prompt },
-            },
-        }
-        endpoint = endpoint .. "/messages"
-    else
-        -- Fallback stub
-        vim.schedule(function()
-            cb("AI: " .. prompt)
-        end)
-        return
-    end
-
-    -- For demonstration, this is a stub. Replace with plenary.curl or vim.loop-based HTTP request.
+    -- Status message in sidebar while waiting for response
     vim.schedule(function()
-        cb(string.format("[%s/%s] %s", provider, model, prompt))
+        table.insert(chat_history, { 
+            prompt = prompt, 
+            response = "Thinking..." 
+        })
+        render_sidebar()
+    end)
+    
+    -- Call the actual AI provider through our HTTP client
+    http.ai_request({
+        config = config,
+        prompt = prompt,
+        context = context,
+        provider = config.provider,
+    }, function(result, err)
+        -- Remove the "Thinking..." entry
+        table.remove(chat_history)
+        
+        if err then
+            -- Handle error
+            vim.schedule(function()
+                vim.notify("AI request failed: " .. err, vim.log.levels.ERROR)
+                cb("Error: " .. err)
+            end)
+            return
+        end
+        
+        -- Process successful response
+        vim.schedule(function()
+            -- Add to history and render
+            cb(result.text)
+            
+            -- Save the interaction to history module if available
+            pcall(function()
+                local history_module = require('splice.history')
+                if history_module and history_module.add_entry then
+                    history_module.add_entry({
+                        prompt = prompt,
+                        response = result.text,
+                        provider = result.provider,
+                        model = result.model,
+                        timestamp = os.time(),
+                    })
+                end
+            end)
+        end)
     end)
 end
 
@@ -148,9 +139,25 @@ end
 local function prompt_input()
     vim.ui.input({ prompt = "AI prompt: " }, function(input)
         if not input or input == "" then return end
+        
+        -- Gather context from current buffers
         local context = gather_context()
+        
+        -- Add to chat history immediately to show user input
+        table.insert(chat_history, { 
+            prompt = input, 
+            response = nil 
+        })
+        render_sidebar()
+        
+        -- Make the AI request
         ai_chat(input, context, function(response)
-            table.insert(chat_history, { prompt = input, response = response })
+            -- Update the last entry with the response
+            if chat_history[#chat_history] and chat_history[#chat_history].prompt == input then
+                chat_history[#chat_history].response = response
+            else
+                table.insert(chat_history, { prompt = input, response = response })
+            end
             render_sidebar()
         end)
     end)
@@ -175,12 +182,10 @@ function M.setup(cfg)
 end
 
 function M.toggle()
-    print("start")
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         close_sidebar()
     else
         open_sidebar()
-        print("opening sidebar")
     end
 end
 

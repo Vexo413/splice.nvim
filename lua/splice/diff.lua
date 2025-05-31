@@ -1,5 +1,6 @@
 local M = {}
 local config
+local http = require('splice.http')
 
 local function show_diff(original, modified, commentary)
     -- Use floating windows for side-by-side diff
@@ -58,67 +59,105 @@ local function show_diff(original, modified, commentary)
 end
 
 local function fetch_ai_diff(prompt, context, cb)
-    -- Use config.provider and selected model for AI backend call
-    local provider = config.provider or "ollama"
-    local model
-    local endpoint
-    local headers = {}
-    local body = {}
+    local orig = context.selection or context.buffer
+    
+    -- Create a specialized prompt for code modification
+    local specialized_prompt = [[
+You are a code modification assistant. I will provide code and a modification request.
+Your task is to return the modified version of the code that fulfills the request.
+Only return the modified code without additional explanations.
 
-    if provider == "ollama" then
-        endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
-        model = (config.ollama and config.ollama.default_model) or "codellama"
-        body = {
-            model = model,
-            prompt = prompt,
-            context = context,
-        }
-    elseif provider == "openai" then
-        endpoint = (config.openai and config.openai.endpoint) or "https://api.openai.com/v1/chat/completions"
-        model = (config.openai and config.openai.default_model) or "gpt-4"
-        headers = {
-            ["Authorization"] = "Bearer " .. (config.openai and config.openai.api_key or ""),
-            ["Content-Type"] = "application/json",
-        }
-        body = {
-            model = model,
-            messages = {
-                { role = "system", content = "You are a helpful AI code assistant." },
-                { role = "user", content = prompt },
-            },
-            context = context,
-        }
-    elseif provider == "anthropic" then
-        endpoint = (config.anthropic and config.anthropic.endpoint) or "https://api.anthropic.com/v1/messages"
-        model = (config.anthropic and config.anthropic.default_model) or "claude-3-opus-20240229"
-        headers = {
-            ["x-api-key"] = (config.anthropic and config.anthropic.api_key or ""),
-            ["Content-Type"] = "application/json",
-        }
-        body = {
-            model = model,
-            messages = {
-                { role = "user", content = prompt },
-            },
-            context = context,
-        }
-    else
-        -- fallback stub
-        vim.schedule(function()
-            local orig = context.selection or context.buffer
-            local mod = vim.deepcopy(orig)
-            table.insert(mod, "-- AI modified: " .. prompt)
-            cb(orig, mod, "This change was suggested by the AI for: " .. prompt)
-        end)
-        return
-    end
+Original code:
+```
+]] .. table.concat(orig, "\n") .. [[
+```
 
-    -- For demonstration, still use stub (replace with real HTTP request in production)
+Modification request: ]] .. prompt .. [[
+
+Modified code:
+]]
+
+    -- Update context with specific diff instructions
+    local diff_context = vim.deepcopy(context)
+    diff_context.type = "diff"
+    diff_context.filetype = context.filetype or "text"
+    
+    -- Show a loading indicator
     vim.schedule(function()
-        local orig = context.selection or context.buffer
         local mod = vim.deepcopy(orig)
-        table.insert(mod, "-- AI (" .. provider .. "/" .. (model or "") .. ") modified: " .. prompt)
-        cb(orig, mod, "This change was suggested by the AI (" .. provider .. "/" .. (model or "") .. ") for: " .. prompt)
+        table.insert(mod, "-- Generating AI modification...")
+        cb(orig, mod, "Generating modification based on: " .. prompt)
+    end)
+
+    -- Make the actual API request
+    http.ai_request({
+        config = config,
+        prompt = specialized_prompt,
+        context = diff_context,
+        provider = config.provider,
+    }, function(result, err)
+        if err then
+            vim.schedule(function()
+                vim.notify("AI diff generation failed: " .. err, vim.log.levels.ERROR)
+                local mod = vim.deepcopy(orig)
+                table.insert(mod, "-- Error: " .. err)
+                cb(orig, mod, "Error generating diff: " .. err)
+            end)
+            return
+        end
+        
+        -- Process the response text into lines
+        local response_text = result.text
+        
+        -- Clean up the response by removing markdown code blocks if present
+        response_text = response_text:gsub("```[%w%+%-_]*\n", ""):gsub("```", "")
+        
+        -- Split into lines
+        local modified_lines = {}
+        for line in response_text:gmatch("([^\n]*)\n?") do
+            table.insert(modified_lines, line)
+        end
+        
+        -- Remove empty lines at the beginning and end
+        while modified_lines[1] and modified_lines[1]:match("^%s*$") do
+            table.remove(modified_lines, 1)
+        end
+        
+        while modified_lines[#modified_lines] and modified_lines[#modified_lines]:match("^%s*$") do
+            table.remove(modified_lines)
+        end
+        
+        -- If no modified lines, use original
+        if #modified_lines == 0 then
+            modified_lines = vim.deepcopy(orig)
+            table.insert(modified_lines, "-- No changes made by AI")
+        end
+        
+        -- Create a commentary
+        local commentary = "Changes suggested by " .. result.provider .. "/" .. result.model ..
+                           " based on: " .. prompt
+        
+        -- Save to history
+        pcall(function()
+            local history_module = require('splice.history')
+            if history_module and history_module.add_entry then
+                history_module.add_entry({
+                    prompt = prompt,
+                    response = response_text,
+                    provider = result.provider,
+                    model = result.model,
+                    timestamp = os.time(),
+                    type = "diff",
+                    original = orig,
+                    modified = modified_lines,
+                })
+            end
+        end)
+        
+        -- Return the result through callback
+        vim.schedule(function()
+            cb(orig, modified_lines, commentary)
+        end)
     end)
 end
 

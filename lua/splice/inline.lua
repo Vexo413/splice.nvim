@@ -1,6 +1,7 @@
 local M = {}
 local ns = vim.api.nvim_create_namespace("splice_inline")
 local config
+local http = require('splice.http')
 
 local function clear_virtual_text(bufnr)
     vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
@@ -17,15 +18,45 @@ end
 
 local function fetch_ai_suggestion(prompt, context, cb)
     local status, err = pcall(function()
-        -- Use config.provider and selected model for AI backend call
-        local provider = (config and config.provider) or "ollama"
-        local model = (config and config[provider] and config[provider].default_model) or "default"
-        local endpoint = (config and config[provider] and config[provider].endpoint)
-
-        -- This is a stub. Replace with actual async HTTP call logic for each provider.
-        local suggestion = string.format("[%s/%s] %s", provider, model, prompt)
+        -- Add a placeholder suggestion immediately
         vim.schedule(function()
-            cb("AI Suggestion: " .. suggestion)
+            cb("Generating suggestion...")
+        end)
+        
+        -- Call the AI provider through our HTTP client
+        http.ai_request({
+            config = config,
+            prompt = prompt,
+            context = context,
+            provider = config and config.provider,
+        }, function(result, err_resp)
+            if err_resp then
+                vim.schedule(function()
+                    vim.notify("AI suggestion failed: " .. err_resp, vim.log.levels.ERROR)
+                    cb("Error: " .. err_resp)
+                end)
+                return
+            end
+            
+            -- Process successful response
+            vim.schedule(function()
+                cb(result.text)
+                
+                -- Save the interaction to history module if available
+                pcall(function()
+                    local history_module = require('splice.history')
+                    if history_module and history_module.add_entry then
+                        history_module.add_entry({
+                            prompt = prompt,
+                            response = result.text,
+                            provider = result.provider,
+                            model = result.model,
+                            timestamp = os.time(),
+                            type = "inline",
+                        })
+                    end
+                end)
+            end)
         end)
     end)
     
