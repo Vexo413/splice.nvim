@@ -520,6 +520,51 @@ local function is_prompt_valid()
 end
 
 -- Setup the prompt buffer with appropriate settings and mappings
+-- Function to submit the prompt content
+local function submit_prompt()
+    local lines = vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false)
+    -- Filter out comment lines and empty lines
+    local prompt_lines = {}
+    for _, line in ipairs(lines) do
+        if not line:match("^%s*--") and line:match("%S") then
+            table.insert(prompt_lines, line)
+        end
+    end
+
+    if #prompt_lines > 0 then
+        local prompt_text = table.concat(prompt_lines, "\n")
+        -- Submit the prompt
+        local context = gather_context_as_text()
+
+        -- Add to chat history immediately to show user input
+        local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
+        table.insert(chat_history, {
+            id = msg_id,
+            prompt = prompt_text,
+            response = "Waiting for response..."
+        })
+        render_sidebar()
+
+        -- Switch focus to the sidebar to see the response
+        focus_sidebar()
+
+        -- Make the AI request
+        ai_chat(prompt_text, context, function()
+            render_sidebar()
+        end)
+
+        -- Clear the prompt buffer for next input but keep the instructions
+        vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
+            "-- Type your prompt here and save (:w) or press Ctrl+S to submit",
+            "-- Press <leader>af to switch focus to the response area",
+            ""
+        })
+    end
+
+    -- Mark the buffer as no longer modified
+    vim.api.nvim_buf_set_option(prompt_buf, "modified", false)
+end
+
 setup_prompt_buffer = function()
     if is_prompt_valid() then
         return prompt_buf
@@ -538,7 +583,7 @@ setup_prompt_buffer = function()
 
     -- Initial content with instructions
     vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-        "-- Type your prompt here and save (:w) to submit",
+        "-- Type your prompt here and save (:w) or press Ctrl+S to submit",
         "-- Press <leader>af to switch focus to the response area",
         ""
     })
@@ -547,49 +592,14 @@ setup_prompt_buffer = function()
     vim.api.nvim_create_autocmd("BufWriteCmd", {
         buffer = prompt_buf,
         callback = function()
-            local lines = vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false)
-            -- Filter out comment lines and empty lines
-            local prompt_lines = {}
-            for _, line in ipairs(lines) do
-                if not line:match("^%s*--") and line:match("%S") then
-                    table.insert(prompt_lines, line)
-                end
-            end
-
-            if #prompt_lines > 0 then
-                local prompt_text = table.concat(prompt_lines, "\n")
-                -- Submit the prompt
-                local context = gather_context_as_text()
-
-                -- Add to chat history immediately to show user input
-                local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
-                table.insert(chat_history, {
-                    id = msg_id,
-                    prompt = prompt_text,
-                    response = "Waiting for response..."
-                })
-                render_sidebar()
-
-                -- Switch focus to the sidebar to see the response
-                focus_sidebar()
-
-                -- Make the AI request
-                ai_chat(prompt_text, context, function()
-                    render_sidebar()
-                end)
-
-                -- Clear the prompt buffer for next input but keep the instructions
-                vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-                    "-- Type your prompt here and save (:w) to submit",
-                    "-- Press <leader>af to switch focus to the response area",
-                    ""
-                })
-            end
-
-            -- Mark the buffer as no longer modified
-            vim.api.nvim_buf_set_option(prompt_buf, "modified", false)
+            submit_prompt()
         end
     })
+    
+    -- Add Ctrl+S keybinding to submit prompt in both normal and insert modes
+    local keymap_opts = { buffer = prompt_buf, noremap = true, silent = true }
+    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<C-s>", "<cmd>lua require('splice.sidebar').submit_current_prompt()<CR>", keymap_opts)
+    vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<C-s>", "<Esc><cmd>lua require('splice.sidebar').submit_current_prompt()<CR>", keymap_opts)
 
     return prompt_buf
 end
@@ -932,6 +942,21 @@ function M.toggle_focus()
     
     if not status then
         vim.notify("[splice.nvim] Error toggling focus: " .. tostring(err), vim.log.levels.ERROR)
+    end
+end
+
+-- Submit the current prompt (exposed for keymap)
+function M.submit_current_prompt()
+    local status, err = pcall(function()
+        if is_prompt_valid() then
+            submit_prompt()
+        else
+            vim.notify("[splice.nvim] Prompt buffer is not valid", vim.log.levels.WARN)
+        end
+    end)
+    
+    if not status then
+        vim.notify("[splice.nvim] Error submitting prompt: " .. tostring(err), vim.log.levels.ERROR)
     end
 end
 

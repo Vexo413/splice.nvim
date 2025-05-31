@@ -139,7 +139,9 @@ In the sidebar:
 - `<leader>af` - Switch focus to the prompt editor
 
 In the prompt editor:
-- Write your prompt and save (`:w`) to submit
+- Write your prompt and either:
+  - Save (`:w`) to submit, or
+  - Press `Ctrl+S` to submit (works in both normal and insert modes)
 - `<leader>af` - Switch focus to the response area
 
 In diff view:

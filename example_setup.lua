@@ -110,3 +110,6 @@ require('splice').setup({
 -- 5. To check if Ollama is accessible, run :SpliceCheckOllama
 -- 6. The sidebar is now a proper Neovim split window (not a floating window)
 --    Use :SpliceToggle to show/hide it
+-- 7. In the prompt editor, you can submit your prompt with either:
+--    - Save command (:w)
+--    - Press Ctrl+S (works in both normal and insert modes)
