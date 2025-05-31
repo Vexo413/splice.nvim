@@ -2,7 +2,7 @@ local M = {}
 local uv = vim.loop
 
 -- Default timeout in milliseconds
-local DEFAULT_TIMEOUT = 30000
+local DEFAULT_TIMEOUT = 60000
 
 -- Helper function to encode JSON
 local function json_encode(data)
@@ -93,11 +93,26 @@ local function http_request(opts, callback)
 
     -- Connect to host
     uv.getaddrinfo(host, port, { family = "inet", socktype = "stream" }, function(err, res)
-        if err or not res[1] then
+        if err or not res or not res[1] then
             timer:stop()
             timer:close()
             return vim.schedule(function()
-                callback(nil, "DNS resolution failed: " .. (err or "unknown error"))
+                -- More helpful error message
+                local error_msg = "Could not connect to " .. host .. ":" .. port
+                if err then
+                    error_msg = error_msg .. " - " .. err
+                elseif not res then
+                    error_msg = error_msg .. " - No DNS results"
+                else
+                    error_msg = error_msg .. " - No valid DNS results"
+                end
+                
+                -- For Ollama, add a hint
+                if host:match("localhost") and (port == 11434 or url:match("ollama")) then
+                    error_msg = error_msg .. ". Is Ollama running? Start it with 'ollama serve'"
+                end
+                
+                callback(nil, error_msg)
             end)
         end
 
@@ -134,22 +149,29 @@ local function http_request(opts, callback)
                     client:close()
 
                     -- Parse response
-                    local status, headers_text, body
-                    status = response_data:match("HTTP/%d%.%d (%d+)")
+                                local status, headers_text, body
+                                status = response_data:match("HTTP/%d%.%d (%d+)")
 
-                    -- More robust header/body separation
-                    local header_end = response_data:find("\r\n\r\n")
-                    if header_end then
-                        headers_text = response_data:sub(1, header_end - 1)
-                        body = response_data:sub(header_end + 4)
-                    else
-                        -- Fallback if we can't find the header/body separator
-                        headers_text, body = response_data:match("(.-)\r\n\r\n(.*)")
-                        if not headers_text then
-                            headers_text = ""
-                            body = response_data
-                        end
-                    end
+                                -- More robust header/body separation
+                                local header_end = response_data:find("\r\n\r\n")
+                                if header_end then
+                                    headers_text = response_data:sub(1, header_end - 1)
+                                    body = response_data:sub(header_end + 4)
+                                else
+                                    -- Fallback if we can't find the header/body separator
+                                    headers_text, body = response_data:match("(.-)\r\n\r\n(.*)")
+                                    if not headers_text then
+                                        headers_text = ""
+                                        body = response_data
+                                    end
+                                end
+                    
+                                -- Debug logging for troubleshooting
+                                if opts and opts.debug then
+                                    vim.notify("HTTP Response: Status=" .. (status or "unknown") .. 
+                                              ", Headers=" .. #(headers_text or "") .. 
+                                              ", Body=" .. #(body or ""), vim.log.levels.DEBUG)
+                                end
 
                     local response = {
                         status = tonumber(status) or 0,
@@ -235,14 +257,19 @@ end
 
 -- Ollama API implementation
 function M.ollama_request(opts, callback)
-    local config = opts.config
-    local prompt = opts.prompt
-    local context = opts.context or {}
-    local model = opts.model or (config.ollama and config.ollama.default_model) or "codellama"
-    local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
-
-    -- Construct API endpoint for Ollama
-    local url = endpoint .. "/api/generate"
+local config = opts.config
+local prompt = opts.prompt
+local context = opts.context or {}
+local model = opts.model or (config.ollama and config.ollama.default_model) or "codellama"
+local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
+    
+-- Check if Ollama is running by making a test request
+pcall(function()
+    vim.fn.system("curl -s --connect-timeout 2 " .. endpoint .. "/api/tags")
+end)
+    
+-- Construct API endpoint for Ollama
+local url = endpoint .. "/api/generate"
 
     -- Prepare request body
     local body = {
@@ -263,7 +290,7 @@ function M.ollama_request(opts, callback)
             ["Content-Type"] = "application/json",
         },
         body = body,
-        timeout = 60000, -- Ollama can take longer for first request
+        timeout = 120000, -- Increase timeout to 2 minutes for Ollama
     }, function(response, err)
         if err then
             local error_msg = type(err) == "string" and err or
@@ -279,13 +306,31 @@ function M.ollama_request(opts, callback)
         end
 
         local result = response.body
-        if not result.response then
-            callback(nil, "Ollama API Error: No text in response - " .. vim.inspect(result))
+        -- Handle both streaming and non-streaming response formats
+        if result.response then
+            -- Standard response format
+            callback({
+                text = result.response,
+                context_id = result.context,
+                model = model,
+                provider = "ollama",
+                raw_response = result -- Include raw response for debugging
+            }, nil)
+            return
+        elseif result.message then
+            -- Error message format
+            callback(nil, "Ollama API Error: " .. result.message)
+            return
+        else
+            -- Debug output for unexpected format
+            callback(nil, "Ollama API Error: Unexpected response format - " .. vim.inspect(result))
             return
         end
 
+        -- This code will never be reached due to the previous change
+        -- But keeping it as a fallback just in case
         callback({
-            text = result.response,
+            text = result.response or "No response text available",
             context_id = result.context,
             model = model,
             provider = "ollama",
@@ -480,6 +525,14 @@ end
 function M.ai_request(opts, callback)
     local config = opts.config
     local provider = opts.provider or config.provider or "ollama"
+    
+    -- Pass through timeout from opts if provided
+    if opts.timeout then
+        opts.timeout = tonumber(opts.timeout) or DEFAULT_TIMEOUT
+    end
+    
+    -- Add debug flag for troubleshooting
+    opts.debug = opts.debug or (vim.g.splice_debug == 1)
 
     -- Validate callback is a function
     if type(callback) ~= "function" then

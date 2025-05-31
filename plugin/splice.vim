@@ -18,6 +18,14 @@ command! -nargs=0 SplicePrompt lua require('splice.sidebar').prompt()
 command! -nargs=0 SpliceHistory lua require('splice.history').show_history()
 command! -nargs=0 SpliceReload lua for k in pairs(package.loaded) do if k:match('^splice') then package.loaded[k] = nil end end; require('splice').setup()
 command! -nargs=0 SpliceDebug lua print('Debug info:'); print('Plugin path: '..vim.inspect(vim.api.nvim_get_runtime_file('lua/splice*', true))); print('Loaded modules: '..vim.inspect(vim.tbl_filter(function(k) return k:match('^splice') end, vim.tbl_keys(package.loaded))))
+command! -nargs=0 SpliceDebugEnable lua vim.g.splice_debug = 1; print('Splice debug mode enabled')
+command! -nargs=0 SpliceDebugDisable lua vim.g.splice_debug = 0; print('Splice debug mode disabled')
+command! -nargs=0 SpliceCheckOllama lua vim.fn.system("curl -s --connect-timeout 2 http://localhost:11434/api/tags > /dev/null"); if vim.v.shell_error == 0 then print("Ollama is running") else print("Ollama is not running. Start it with 'ollama serve'") end
+
+" Initialize global variables
+if !exists('g:splice_debug')
+  let g:splice_debug = 0
+endif
 
 " Make sure the plugin can be safely loaded
 if !has('nvim-0.5.0')
