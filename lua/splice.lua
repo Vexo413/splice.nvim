@@ -72,6 +72,9 @@ M.config = {
     ---------------------------------------------------------------------------
     inline_trigger = "///", -- Trigger string for inline completions
     sidebar_width = 40,     -- Width of the AI chat sidebar in columns
+    sidebar_position = "right", -- Position of the sidebar ("left" or "right")
+    focus_on_open = false,  -- Whether to focus the sidebar when opening it
+    restore_on_startup = false, -- Whether to restore the sidebar on startup if it was open before
     history_file = vim.fn.stdpath("data") .. "/splice_history.json", -- Interaction history
     session_file = vim.fn.stdpath("data") .. "/splice_session.json", -- Session state
 }

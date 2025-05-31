@@ -5,7 +5,7 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 ## Features
 
 - 🧠 AI-powered code suggestions and transformations
-- 💬 Interactive chat sidebar for coding assistance
+- 💬 Interactive chat sidebar (real split window) for coding assistance
 - 📝 Inline code completion
 - 🔄 Side-by-side diff view for AI suggestions
 - 📚 History tracking of AI interactions
@@ -52,6 +52,9 @@ use {
       },
       inline_trigger = "///",
       sidebar_width = 40,
+      sidebar_position = "right", -- Can be "left" or "right"
+      focus_on_open = false,      -- Focus sidebar when opening
+      restore_on_startup = true,  -- Restore sidebar state on startup
       history_file = vim.fn.stdpath("data") .. "/splice_history.json",
       session_file = vim.fn.stdpath("data") .. "/splice_session.json",
     })
@@ -94,6 +97,9 @@ require('splice').setup({
   -- UI and workflow options
   inline_trigger = "///", -- Trigger for inline completions
   sidebar_width = 40,     -- Width of the AI chat sidebar
+  sidebar_position = "right", -- Position of the sidebar ("left" or "right")
+  focus_on_open = false,  -- Whether to focus the sidebar when opening it
+  restore_on_startup = false, -- Whether to restore the sidebar on startup if it was open before
   
   -- File paths for storing data
   history_file = vim.fn.stdpath("data") .. "/splice_history.json",
@@ -108,6 +114,7 @@ require('splice').setup({
 - `:SpliceToggle` - Toggle the AI sidebar
 - `:SplicePrompt` - Open the AI prompt input
 - `:SpliceHistory` - Show history of AI interactions
+- `:SpliceReload` - Reload the plugin (helpful for troubleshooting)
 
 ### Keybindings
 
@@ -119,6 +126,10 @@ Default keybindings:
 - `<leader>ah` - Show history of AI interactions
 - `<leader>ad` - (Visual mode) Generate a diff for selected code
 
+In the sidebar:
+- `q` - Close the sidebar
+- `p` - Open the AI prompt input
+
 In diff view:
 - `<leader>da` - Accept the suggested changes
 - `<leader>dr` - Reject the suggested changes
@@ -127,9 +138,17 @@ In inline suggestion mode:
 - `<Tab>` - Accept the suggestion
 - `<Esc>` - Dismiss the suggestion
 
-## Troubleshooting
+### Troubleshooting
 
-### Keybindings not working
+#### Sidebar issues
+
+If the sidebar doesn't open or behaves unexpectedly:
+
+1. Try `:SpliceReload` to reload the plugin
+2. Check that your Neovim version is compatible (0.5.0+)
+3. Ensure you don't have window layout plugins that might interfere with splits
+
+#### Keybindings not working
 
 Make sure you have set up your `<leader>` key in your Neovim configuration.
 
