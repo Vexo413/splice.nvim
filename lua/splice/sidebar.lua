@@ -91,6 +91,7 @@ local function render_sidebar()
         table.insert(lines, "")
     end
     vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
+    print("RENDERED")
 end
 
 local function open_sidebar()
@@ -98,6 +99,7 @@ local function open_sidebar()
         vim.api.nvim_set_current_win(sidebar_win)
         return
     end
+    print("thingy 1")
     local width = config.sidebar_width or 40
     sidebar_win = vim.api.nvim_open_win(sidebar_buf, true, {
         relative = "editor",
@@ -108,6 +110,7 @@ local function open_sidebar()
         style = "minimal",
         border = "rounded",
     })
+    print("thingy 2")
     render_sidebar()
 end
 
@@ -141,10 +144,12 @@ function M.setup(cfg)
 end
 
 function M.toggle()
+    print("start")
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         close_sidebar()
     else
         open_sidebar()
+        print("opening sidebar")
     end
 end
 
