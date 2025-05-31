@@ -527,8 +527,8 @@ local function submit_prompt()
     -- Filter out comment lines and empty lines
     local prompt_lines = {}
     for _, line in ipairs(lines) do
+        print(line)
         if not line:match("^%s*--") and line:match("%S") then
-            print(line)
             table.insert(prompt_lines, line)
         end
     end
