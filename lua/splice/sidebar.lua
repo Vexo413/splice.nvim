@@ -519,6 +519,23 @@ local function is_prompt_valid()
     return prompt_buf and vim.api.nvim_buf_is_valid(prompt_buf)
 end
 
+-- Function to clear the prompt buffer
+local function clear_prompt_buffer()
+    -- Only proceed if prompt buffer is valid
+    if is_prompt_valid() then
+        vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
+            "-- Type your prompt here and save (:w) or press Ctrl+S to submit",
+            "-- Press <leader>af to switch focus to the response area",
+            "-- Press Ctrl+L to clear the prompt",
+            ""
+        })
+        -- Set cursor at the end of the buffer
+        if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
+            vim.api.nvim_win_set_cursor(prompt_win, { 4, 0 })
+        end
+    end
+end
+
 -- Setup the prompt buffer with appropriate settings and mappings
 -- Function to submit the prompt content
 local function submit_prompt()
@@ -572,22 +589,7 @@ local function submit_prompt()
     vim.api.nvim_buf_set_option(prompt_buf, "modified", false)
 end
 
--- Function to clear the prompt buffer
-local function clear_prompt_buffer()
-    -- Only proceed if prompt buffer is valid
-    if is_prompt_valid() then
-        vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-            "-- Type your prompt here and save (:w) or press Ctrl+S to submit",
-            "-- Press <leader>af to switch focus to the response area",
-            "-- Press Ctrl+L to clear the prompt",
-            ""
-        })
-        -- Set cursor at the end of the buffer
-        if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
-            vim.api.nvim_win_set_cursor(prompt_win, { 4, 0 })
-        end
-    end
-end
+
 
 setup_prompt_buffer = function()
     if is_prompt_valid() then
