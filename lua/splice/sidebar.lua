@@ -209,6 +209,7 @@ local function fold_think_blocks(bufnr)
         elseif line:match("</think>") and start then
             -- Fold from start to current line
             vim.api.nvim_buf_call(bufnr, function()
+                vim.opt_local.foldmethod = "manual"
                 vim.cmd(string.format("%d,%dfold", start, i))
             end)
             start = nil
