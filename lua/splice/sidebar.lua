@@ -330,10 +330,25 @@ render_history = function()
         -- Automatically fold think regions
         pcall(function()
             vim.api.nvim_buf_call(history_buf, function()
-                -- Find and fold all think regions
+                -- Clear existing folds first
+                vim.cmd("silent! normal! zE")
+                
+                -- Find and manually create folds for think regions
+                local buf_lines = vim.api.nvim_buf_get_lines(history_buf, 0, -1, false)
+                local think_start = nil
+                
+                for i, line in ipairs(buf_lines) do
+                    if line:match("<think>") then
+                        think_start = i
+                    elseif line:match("</think>") and think_start then
+                        -- Create a fold from think_start to current line
+                        vim.cmd(string.format("silent! %d,%dfold", think_start, i))
+                        think_start = nil
+                    end
+                end
+                
+                -- Close all folds
                 vim.cmd("silent! %foldclose!")
-                -- Specifically target think regions
-                vim.cmd("silent! g/<think>/,/<\\/think>/fold")
             end)
         end)
 
@@ -539,7 +554,7 @@ function configure_history_buffer(buf)
                 syntax match spliceHorizontalRule /^\s*\(_\s*\)\{3,\}$/
 
                 " Think tags with automatic folding
-                syntax region spliceThinkRegion start=/<think>/ end=/<\/think>/ fold contains=spliceThinkTag
+                syntax region spliceThinkRegion start=/^\s*<think>/ end=/^\s*<\/think>/ fold contains=spliceThinkTag
                 syntax match spliceThinkTag /<\/?think>/ contained
 
                 " Define highlighting for user questions and AI responses
@@ -579,7 +594,7 @@ function configure_history_buffer(buf)
         vim.api.nvim_buf_set_name(buf, "SpliceAI")
 
         -- Configure folding for think tags
-        vim.api.nvim_buf_set_option(buf, "foldmethod", "syntax")
+        vim.api.nvim_buf_set_option(buf, "foldmethod", "manual")
         vim.api.nvim_buf_set_option(buf, "foldlevel", 0)
         vim.api.nvim_buf_set_option(buf, "foldenable", true)
 
