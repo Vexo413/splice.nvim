@@ -260,6 +260,7 @@ render_history = function()
                 -- Add the first line with the prefix
                 local first_line, rest = response_text:match("^([^\n]*)\n(.*)")
                 if first_line then
+                    -- Add first line with the AI prefix
                     table.insert(lines, response_prefix .. first_line)
 
                     -- Process remaining text, using code block processing if enabled
@@ -275,9 +276,10 @@ render_history = function()
                         end
                     end
 
-                    -- Add processed lines with indentation
+                    -- Add processed lines with consistent indentation to maintain proper alignment
+                    local prefix_padding = string.rep(" ", vim.api.nvim_strwidth(response_prefix))
                     for _, line in ipairs(processed_lines) do
-                        table.insert(lines, "    " .. line)
+                        table.insert(lines, prefix_padding .. line)
                     end
                 else
                     -- Fallback if pattern match fails
@@ -474,6 +476,12 @@ function configure_history_buffer(buf)
                 syntax match spliceCodeLang /```\w\+/ contained
                 highlight link spliceCodeBlock Comment
                 highlight link spliceCodeLang Keyword
+                
+                " Override Markdown indentation highlighting for AI responses
+                syntax match spliceAIResponse /^AI.*$/
+                syntax match spliceAIResponseCont /^\s\+.*$/
+                highlight link spliceAIResponse Normal
+                highlight link spliceAIResponseCont Normal
             ]])
         end)
 
