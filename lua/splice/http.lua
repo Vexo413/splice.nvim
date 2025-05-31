@@ -39,6 +39,14 @@ end
 
 -- Ollama async request using plenary.curl, with streaming support
 function M.ollama_request(opts, callback)
+    -- Validate callback is a function
+    if type(callback) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
+        end)
+        return
+    end
+    
     local config = opts.config or {}
     local prompt = opts.prompt
     local context = opts.context or {}
@@ -64,77 +72,120 @@ function M.ollama_request(opts, callback)
 
     local full_content = {}
     local accumulated_text = ""
-
-    curl.post(endpoint .. "/api/chat", {
-        body = json_encode(payload),
-        headers = { ["Content-Type"] = "application/json" },
-        stream = true,
-        -- on_data is called with each chunk as it arrives
-        on_data = vim.schedule_wrap(function(chunk, _)
-            if not chunk or chunk == "" then return end
-            -- Ollama streams JSON objects, one per line
-            for line in chunk:gmatch("[^\r\n]+") do
-                local ok, obj = pcall(json_decode, line)
-                if ok and obj and obj.message and obj.message.content then
-                    table.insert(full_content, obj.message.content)
-                    accumulated_text = table.concat(full_content, "")
-                    -- Provide partial output to callback (streaming)
-                    vim.notify("[DEBUG] Callback type: " .. type(callback), vim.log.levels.DEBUG)
-                    callback({
-                        text = accumulated_text,
-                        model = model,
-                        provider = "ollama",
-                        raw_response = line,
-                        streaming = true,
-                    }, nil)
-                end
+    
+    -- Create safe callback wrappers that check if callback is still valid
+    local function safe_callback(result, err)
+        if type(callback) == "function" then
+            vim.schedule(function()
+                callback(result, err)
+            end)
+        end
+    end
+    
+    -- Wrapper for on_data
+    local function on_data_handler(chunk, _)
+        if not chunk or chunk == "" then return end
+        -- Ollama streams JSON objects, one per line
+        for line in chunk:gmatch("[^\r\n]+") do
+            local ok, obj = pcall(json_decode, line)
+            if ok and obj and obj.message and obj.message.content then
+                table.insert(full_content, obj.message.content)
+                accumulated_text = table.concat(full_content, "")
+                -- Provide partial output to callback (streaming)
+                safe_callback({
+                    text = accumulated_text,
+                    model = model,
+                    provider = "ollama",
+                    raw_response = line,
+                    streaming = true,
+                }, nil)
             end
-        end),
-        callback = vim.schedule_wrap(function(res)
-            -- Final callback when stream ends
-            if not res or res.status ~= 200 then
-                vim.notify("[DEBUG] Callback type: " .. type(callback), vim.log.levels.DEBUG)
-                callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
-                return
-            end
+        end
+    end
+    
+    -- Wrapper for final callback
+    local function final_callback(res)
+        -- Final callback when stream ends
+        if not res or res.status ~= 200 then
+            safe_callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
+            return
+        end
 
-            -- If nothing was streamed, try to extract from body (fallback)
-            if #full_content == 0 and res.body then
-                for content in (res.body or ""):gmatch([["content"%s*:%s*"([^"]*)"]]) do
-                    table.insert(full_content, content)
-                end
+        -- If nothing was streamed, try to extract from body (fallback)
+        if #full_content == 0 and res.body then
+            for content in (res.body or ""):gmatch([["content"%s*:%s*"([^"]*)"]]) do
+                table.insert(full_content, content)
             end
+        end
 
-            if #full_content == 0 then
-                callback(nil, "Failed to extract any content from Ollama response")
-                return
-            end
+        if #full_content == 0 then
+            safe_callback(nil, "Failed to extract any content from Ollama response")
+            return
+        end
 
-            vim.notify("[DEBUG] Callback type: " .. type(callback), vim.log.levels.DEBUG)
-            callback({
-                text = table.concat(full_content, ""),
-                model = model,
-                provider = "ollama",
-                raw_response = res.body,
-                streaming = false,
-            }, nil)
+        safe_callback({
+            text = table.concat(full_content, ""),
+            model = model,
+            provider = "ollama",
+            raw_response = res.body,
+            streaming = false,
+        }, nil)
+    end
+
+    -- Make the actual request with our safe wrapper functions
+    local ok, err = pcall(function()
+        curl.post(endpoint .. "/api/chat", {
+            body = json_encode(payload),
+            headers = { ["Content-Type"] = "application/json" },
+            stream = true,
+            on_data = on_data_handler,
+            callback = final_callback
+        })
+    end)
+    
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error in HTTP request: " .. tostring(err), vim.log.levels.ERROR)
+            safe_callback(nil, "Error in HTTP request: " .. tostring(err))
         end)
-    })
+    end
 end
 
 function M.openai_request(_, callback)
+    if type(callback) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
+        end)
+        return
+    end
+    
     vim.schedule(function()
         callback(nil, "OpenAI requests are not implemented in this build. Only Ollama is supported.")
     end)
 end
 
 function M.anthropic_request(_, callback)
+    if type(callback) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
+        end)
+        return
+    end
+    
     vim.schedule(function()
         callback(nil, "Anthropic requests are not implemented in this build. Only Ollama is supported.")
     end)
 end
 
 function M.ai_request(opts, callback)
+    -- Validate callback is a function
+    if type(callback) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
+        end)
+        return
+    end
+
     local config = opts.config or {}
     local provider = opts.provider or (config.provider or "ollama")
     if provider == "ollama" then
