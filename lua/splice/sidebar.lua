@@ -19,49 +19,57 @@ local function gather_context_as_text()
     table.insert(context_lines, "  buffers: [")
 
     for _, b in ipairs(bufs) do
-        if vim.api.nvim_buf_is_loaded(b) then
+        if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) ~= "" then
             local name = vim.api.nvim_buf_get_name(b)
             local lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
 
-            if #lines > 0 and name ~= "" then
-                table.insert(context_lines, "    {")
-                table.insert(context_lines, "      name: `" .. name .. "`,")
-                table.insert(context_lines, "      content: `")
-                for _, line in ipairs(lines) do
-                    table.insert(context_lines, line)
-                end
-                table.insert(context_lines, "      `,")
+            table.insert(context_lines, "    {")
+            table.insert(context_lines, "      name: `" .. name .. "`,")
+            table.insert(context_lines, "      content: `")
+            for _, line in ipairs(lines) do
+                table.insert(context_lines, line)
+            end
+            table.insert(context_lines, "     `,")
 
-                -- Optional: LSP symbols
-                local symbols = vim.lsp.buf_request_sync(b, "textDocument/documentSymbol", {
-                    textDocument = { uri = vim.uri_from_bufnr(b) },
-                }, 500)
+            -- LSP symbols
+            local clients = vim.lsp.get_active_clients({ bufnr = b })
+            if #clients > 0 then
+                local params = { textDocument = { uri = vim.uri_from_bufnr(b) } }
+                local responses = vim.lsp.buf_request_sync(b, "textDocument/documentSymbol", params, 300)
 
-                if symbols then
+                if responses then
                     table.insert(context_lines, "      symbols: [")
-                    for _, resp in pairs(symbols) do
+                    for _, resp in pairs(responses) do
                         if resp.result then
-                            for _, sym in ipairs(resp.result) do
-                                table.insert(context_lines, "        " .. sym.kind .. ": " .. sym.name .. ",")
+                            local function flatten_symbols(symbols, depth)
+                                depth = depth or 0
+                                for _, sym in ipairs(symbols) do
+                                    local indent = string.rep("  ", depth + 4)
+                                    table.insert(context_lines, indent .. sym.kind .. ": " .. sym.name .. ",")
+                                    if sym.children then
+                                        flatten_symbols(sym.children, depth + 1)
+                                    end
+                                end
                             end
+                            flatten_symbols(resp.result)
                         end
                     end
                     table.insert(context_lines, "      ],")
                 end
-
-                table.insert(context_lines, "    },")
             end
+
+            table.insert(context_lines, "    },")
         end
     end
 
     table.insert(context_lines, "  ],")
 
-    -- Project structure (naive implementation)
+    -- Project structure (simple file listing)
     table.insert(context_lines, "  project_structure: `")
     local cwd = vim.loop.cwd()
-    local output = vim.fn.systemlist("find " .. cwd .. " -type f -not -path '*/.git/*' -maxdepth 3 2>/dev/null")
-    for _, path in ipairs(output) do
-        table.insert(context_lines, path)
+    local files = vim.fn.systemlist("find " .. cwd .. " -type f -not -path '*/.git/*' -maxdepth 3 2>/dev/null")
+    for _, file in ipairs(files) do
+        table.insert(context_lines, file)
     end
     table.insert(context_lines, "  `")
 
@@ -69,6 +77,7 @@ local function gather_context_as_text()
 
     return table.concat(context_lines, "\n")
 end
+
 
 
 

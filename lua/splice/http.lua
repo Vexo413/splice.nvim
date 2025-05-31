@@ -46,6 +46,7 @@ function M.ollama_request(opts, callback)
     local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
     local context_message = "You are a helpful coding assistant. Here is the context of the users workspace: " ..
         context
+    print(context)
 
     local messages = {
         { role = "system", content = context_message },
