@@ -12,27 +12,64 @@ local prompt_input
 
 -- Helper function to gather context from the editor
 local function gather_context_as_text()
-    local bufs = vim.api.nvim_list_bufs()
     local context_lines = {}
+    local bufs = vim.api.nvim_list_bufs()
+
+    table.insert(context_lines, "{")
+    table.insert(context_lines, "  buffers: [")
 
     for _, b in ipairs(bufs) do
         if vim.api.nvim_buf_is_loaded(b) then
             local name = vim.api.nvim_buf_get_name(b)
             local lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
 
-            -- Optional: skip empty or unnamed buffers
             if #lines > 0 and name ~= "" then
-                table.insert(context_lines, string.format("=== %s ===", name))
-                vim.list_extend(context_lines, lines)
-                table.insert(context_lines, "") -- spacer
+                table.insert(context_lines, "    {")
+                table.insert(context_lines, "      name: `" .. name .. "`,")
+                table.insert(context_lines, "      content: `")
+                for _, line in ipairs(lines) do
+                    table.insert(context_lines, line)
+                end
+                table.insert(context_lines, "      `,")
+
+                -- Optional: LSP symbols
+                local symbols = vim.lsp.buf_request_sync(b, "textDocument/documentSymbol", {
+                    textDocument = { uri = vim.uri_from_bufnr(b) },
+                }, 500)
+
+                if symbols then
+                    table.insert(context_lines, "      symbols: [")
+                    for _, resp in pairs(symbols) do
+                        if resp.result then
+                            for _, sym in ipairs(resp.result) do
+                                table.insert(context_lines, "        " .. sym.kind .. ": " .. sym.name .. ",")
+                            end
+                        end
+                    end
+                    table.insert(context_lines, "      ],")
+                end
+
+                table.insert(context_lines, "    },")
             end
         end
     end
-    print(table.concat(context_lines, "\n"))
 
-    -- Convert to a single string
+    table.insert(context_lines, "  ],")
+
+    -- Project structure (naive implementation)
+    table.insert(context_lines, "  project_structure: `")
+    local cwd = vim.loop.cwd()
+    local output = vim.fn.systemlist("find " .. cwd .. " -type f -not -path '*/.git/*' -maxdepth 3 2>/dev/null")
+    for _, path in ipairs(output) do
+        table.insert(context_lines, path)
+    end
+    table.insert(context_lines, "  `")
+
+    table.insert(context_lines, "}")
+
     return table.concat(context_lines, "\n")
 end
+
 
 
 -- Define the render_sidebar function that updates the sidebar content

@@ -44,8 +44,8 @@ function M.ollama_request(opts, callback)
     local context = opts.context or {}
     local model = opts.model or (config.ollama and config.ollama.default_model) or "codellama"
     local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
-    local context_message = "You are a helpful coding assistant. Here is the context of the users workspace \n```\n" ..
-    context .. "\n```"
+    local context_message = "You are a helpful coding assistant. Here is the context of the users workspace: " ..
+        context
 
     local messages = {
         { role = "system", content = context_message },
