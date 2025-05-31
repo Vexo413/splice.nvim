@@ -10,8 +10,8 @@ return {
   keys = {
     { "<leader>as", desc = "Toggle AI Sidebar" },
     { "<leader>ap", desc = "Open AI Prompt" },
-    { "<leader>aa", desc = "Open Sidebar with Integrated Prompt" },
-    { "<leader>af", desc = "Toggle Focus Between Sidebar/Prompt" },
+    { "<leader>aa", desc = "Open Sidebar and Focus Prompt Editor" },
+    { "<leader>af", desc = "Toggle Focus Between Response/Prompt" },
     { "<leader>ai", desc = "Inline AI Suggestion" },
     { "<leader>ah", desc = "AI History" },
     { "<leader>ad", mode = "v", desc = "AI Diff on Selection" },
@@ -74,7 +74,7 @@ return {
       -- Sidebar appearance
       sidebar_width = 50,              -- Width in columns
       sidebar_position = "right",      -- Can be "left" or "right"
-      focus_on_open = true,            -- Focus prompt when opening with <leader>aa
+      focus_on_open = true,            -- Focus prompt editor when opening with <leader>aa
       restore_on_startup = true,       -- Restore sidebar state from last session
       
       -- Code block handling
@@ -102,13 +102,18 @@ return {
           require("splice.sidebar").prompt_and_focus()
           
           -- Add a pre-filled prompt
-          if vim.api.nvim_buf_is_valid(require("splice.sidebar").get_prompt_buf()) then
-            vim.api.nvim_buf_set_lines(require("splice.sidebar").get_prompt_buf(), 2, -1, false, {
+          local prompt_buf = require("splice.sidebar").get_prompt_buf()
+          if vim.api.nvim_buf_is_valid(prompt_buf) then
+            vim.api.nvim_buf_set_lines(prompt_buf, 2, -1, false, {
               "Please help me understand and improve this function:",
               "File: " .. current_file,
               "Line: " .. current_line,
               ""
             })
+            -- Start in insert mode at the end of the buffer
+            vim.schedule(function()
+              vim.cmd("startinsert!")
+            end)
           end
         end, { buffer = true, desc = "Ask AI about current function" })
       end,
@@ -118,6 +123,6 @@ return {
   -- Add documentation for the plugin
   -- This appears in lazy.nvim's UI
   url = "https://github.com/yourusername/splice.nvim",
-  description = "AI-powered coding assistant for Neovim with integrated prompt editor",
+  description = "AI-powered coding assistant for Neovim with write-and-save prompt workflow",
   version = "1.0.0", -- Set appropriate version
 }

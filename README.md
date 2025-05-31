@@ -11,7 +11,7 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 - 📚 History tracking of AI interactions
 - 🔄 Session persistence
 - 🎨 Syntax highlighting for code blocks in sidebar
-- ⌨️ Integrated prompt editor in sidebar for better workflow
+- ⌨️ Integrated prompt editor with write-and-save workflow
 
 ## Screenshots
 
@@ -101,7 +101,7 @@ require('splice').setup({
   inline_trigger = "///", -- Trigger for inline completions
   sidebar_width = 40,     -- Width of the AI chat sidebar
   sidebar_position = "right", -- Position of the sidebar ("left" or "right")
-  focus_on_open = false,  -- Whether to focus the sidebar when opening it
+  focus_on_open = true,   -- Focus the prompt editor when opening with <leader>aa
   restore_on_startup = false, -- Whether to restore the sidebar on startup if it was open before
   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
 
@@ -116,7 +116,7 @@ require('splice').setup({
 ### Commands
 
 - `:SpliceToggle` - Toggle the AI sidebar
-- `:SplicePrompt` - Open the AI prompt input
+- `:SplicePrompt` - Open the AI prompt input dialog
 - `:SplicePromptFocus` - Open sidebar and focus the integrated prompt editor
 - `:SpliceHistory` - Show history of AI interactions
 - `:SpliceReload` - Reload the plugin (helpful for troubleshooting)
@@ -126,8 +126,8 @@ require('splice').setup({
 Default keybindings:
 
 - `<leader>as` - Toggle the AI sidebar
-- `<leader>ap` - Open the AI prompt input
-- `<leader>aa` - Open sidebar and focus the integrated prompt editor
+- `<leader>ap` - Open the popup AI prompt input
+- `<leader>aa` - Open sidebar with integrated prompt editor focused
 - `<leader>af` - Toggle focus between sidebar and prompt editor
 - `<leader>ai` - Trigger inline AI suggestion
 - `<leader>ah` - Show history of AI interactions
@@ -135,12 +135,14 @@ Default keybindings:
 
 In the sidebar:
 - `q` - Close the sidebar
-- `p` - Open the AI prompt input
+- `p` - Open the popup AI prompt input
 - `<leader>af` - Switch focus to the prompt editor
 
-In the prompt editor:
-- Write your prompt and save (`:w`) to submit
-- `<leader>af` - Switch focus to the response area
+In the integrated prompt editor:
+- Write your prompt in the bottom section of the sidebar
+- Save the buffer (`:w`) to submit your prompt to the AI
+- `<leader>af` or `<C-f>` (in insert mode) - Switch focus to the response area
+- The editor automatically clears after submission while preserving instructions
 
 In diff view:
 - `<leader>da` - Accept the suggested changes
