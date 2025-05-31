@@ -277,8 +277,11 @@ render_history = function()
                     end
 
                     -- Add processed lines with consistent indentation to maintain proper alignment
+                    -- Use special prefix to ensure all response lines have consistent highlighting
                     local prefix_padding = string.rep(" ", vim.api.nvim_strwidth(response_prefix))
                     for _, line in ipairs(processed_lines) do
+                        -- We ensure all continuation lines start with exactly the same amount of space
+                        -- as the original prefix to maintain alignment
                         table.insert(lines, prefix_padding .. line)
                     end
                 else
@@ -312,6 +315,11 @@ render_history = function()
         if config and config.highlight_code_blocks then
             apply_code_block_highlighting(history_buf)
         end
+        
+        -- Re-apply syntax highlighting to ensure consistent colors
+        vim.api.nvim_buf_call(history_buf, function()
+            vim.cmd("syntax on")
+        end)
 
         -- Set back to non-modifiable to protect content
         vim.api.nvim_buf_set_option(history_buf, "modifiable", false)
@@ -463,7 +471,9 @@ function configure_history_buffer(buf)
         vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
         vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
         vim.api.nvim_buf_set_option(buf, "swapfile", false)
-        vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
+        -- Use a custom filetype to have more control over syntax highlighting
+        -- Using plain text instead of markdown to avoid any automatic markdown highlighting
+        vim.api.nvim_buf_set_option(buf, "filetype", "splice")
         vim.api.nvim_buf_set_option(buf, "modifiable", false)
 
         -- Enable syntax highlighting
@@ -472,12 +482,26 @@ function configure_history_buffer(buf)
 
             -- Define custom syntax for code blocks
             vim.cmd([[
+                " Clear all Markdown syntax highlighting that might interfere with our custom rules
+                syntax clear markdownCodeBlock
+                syntax clear markdownCode
+                syntax clear markdownIndentCode
+                
+                " Only apply code block highlighting to fenced code blocks
                 syntax region spliceCodeBlock start=/^\s*```/ end=/^\s*```/ contains=spliceCodeLang
                 syntax match spliceCodeLang /```\w\+/ contained
                 highlight link spliceCodeBlock Comment
                 highlight link spliceCodeLang Keyword
                 
-                " Override Markdown indentation highlighting for AI responses
+                " Ensure ALL text in the buffer uses Normal highlighting by default
+                syntax match spliceText /^.*$/
+                highlight link spliceText Normal
+                
+                " Ensure user questions are consistently highlighted
+                syntax match spliceUserQuestion /^You:.*$/
+                highlight link spliceUserQuestion Statement
+                
+                " Ensure AI responses are consistently highlighted 
                 syntax match spliceAIResponse /^AI.*$/
                 syntax match spliceAIResponseCont /^\s\+.*$/
                 highlight link spliceAIResponse Normal
