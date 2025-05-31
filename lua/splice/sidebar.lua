@@ -210,6 +210,7 @@ local function fold_think_blocks(bufnr)
             -- Fold from start to current line
             vim.api.nvim_buf_call(bufnr, function()
                 vim.opt_local.foldmethod = "manual"
+                print(string.format("%d,%dfold", start, i))
                 vim.cmd(string.format("%d,%dfold", start, i))
             end)
             start = nil
