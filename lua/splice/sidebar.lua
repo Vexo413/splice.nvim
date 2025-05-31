@@ -169,9 +169,9 @@ local function apply_code_block_highlighting(buf)
             pcall(function()
                 -- Create namespace for this code block
                 local ns_id = vim.api.nvim_create_namespace("splice_code_" .. block.lang)
-                
+
                 -- Apply basic syntax highlighting based on language
-                local hl_group = "String"  -- Default fallback
+                local hl_group = "String" -- Default fallback
                 if block.lang == "lua" then
                     hl_group = "Keyword"
                 elseif block.lang == "python" or block.lang == "py" then
@@ -183,13 +183,13 @@ local function apply_code_block_highlighting(buf)
                 elseif block.lang == "vim" then
                     hl_group = "Statement"
                 end
-                
+
                 -- Apply highlighting to the code block content
                 for i = 1, #block.lines do
                     local line_idx = block.start_line + i - 1
                     if line_idx < vim.api.nvim_buf_line_count(buf) then
                         local line_content = vim.api.nvim_buf_get_lines(buf, line_idx, line_idx + 1, false)[1] or ""
-                        if line_content:match("%S") then  -- Only highlight non-empty lines
+                        if line_content:match("%S") then -- Only highlight non-empty lines
                             vim.api.nvim_buf_add_highlight(buf, ns_id, hl_group, line_idx, 0, -1)
                         end
                     end
@@ -233,7 +233,7 @@ render_history = function()
             else
                 table.insert(lines, "You: " .. prompt_text)
             end
-            
+
             -- Add a gap line between user question and AI response
             table.insert(lines, "")
 
@@ -318,12 +318,22 @@ render_history = function()
         if config and config.highlight_code_blocks then
             apply_code_block_highlighting(history_buf)
         end
-        
+
         -- Re-apply syntax highlighting to ensure consistent colors
         -- Use pcall to handle any potential errors with syntax highlighting
         pcall(function()
             vim.api.nvim_buf_call(history_buf, function()
                 vim.cmd("syntax on")
+            end)
+        end)
+
+        -- Automatically fold think regions
+        pcall(function()
+            vim.api.nvim_buf_call(history_buf, function()
+                -- Find and fold all think regions
+                vim.cmd("silent! %foldclose!")
+                -- Specifically target think regions
+                vim.cmd("silent! g/<think>/,/<\\/think>/fold")
             end)
         end)
 
@@ -495,44 +505,48 @@ function configure_history_buffer(buf)
                 syntax match spliceH5 /^#####\s.*$/ contains=spliceHeaderHash
                 syntax match spliceH6 /^######\s.*$/ contains=spliceHeaderHash
                 syntax match spliceHeaderHash /^#\+/ contained
-                
+
                 " Bold text
                 syntax region spliceBold start=/\*\*/ end=/\*\*/ oneline
                 syntax region spliceBold start=/__/ end=/__/ oneline
-                
+
                 " Italic text
                 syntax region spliceItalic start=/\*[^*]/ end=/[^*]\*/ oneline
                 syntax region spliceItalic start=/_[^_]/ end=/[^_]_/ oneline
-                
+
                 " Inline code
                 syntax region spliceInlineCode start=/`/ end=/`/ oneline
-                
+
                 " Code blocks (fenced) - improved pattern matching
                 syntax region spliceCodeBlock start=/^\s*```\w*/ end=/^\s*```/ contains=spliceCodeLang,spliceCodeContent
                 syntax match spliceCodeLang /```\w\+/ contained nextgroup=spliceCodeContent
                 syntax match spliceCodeContent /.*/ contained
-                
+
                 " Links
                 syntax region spliceLink start=/\[/ end=/\]/ nextgroup=spliceLinkUrl
                 syntax region spliceLinkUrl start=/(/ end=/)/ contained
-                
+
                 " Lists
-                syntax match spliceListBullet /^\s*[-*+]\s/ 
+                syntax match spliceListBullet /^\s*[-*+]\s/
                 syntax match spliceListNumber /^\s*\d\+\.\s/
-                
+
                 " Blockquotes
                 syntax match spliceBlockquote /^\s*>\s.*$/
-                
+
                 " Horizontal rules
                 syntax match spliceHorizontalRule /^\s*\(-\s*\)\{3,\}$/
                 syntax match spliceHorizontalRule /^\s*\(\*\s*\)\{3,\}$/
                 syntax match spliceHorizontalRule /^\s*\(_\s*\)\{3,\}$/
-                
+
+                " Think tags with automatic folding
+                syntax region spliceThinkRegion start=/<think>/ end=/<\/think>/ fold contains=spliceThinkTag
+                syntax match spliceThinkTag /<\/?think>/ contained
+
                 " Define highlighting for user questions and AI responses
                 syntax match spliceUserQuestion /^You:.*$/
                 syntax match spliceAIResponse /^AI.*$/
                 syntax match spliceAIResponseCont /^\s\+.*$/
-                
+
                 " Apply highlighting colors
                 highlight default link spliceH1 Title
                 highlight default link spliceH2 Title
@@ -553,6 +567,8 @@ function configure_history_buffer(buf)
                 highlight default link spliceListNumber Special
                 highlight default link spliceBlockquote Comment
                 highlight default link spliceHorizontalRule Comment
+                highlight default link spliceThinkRegion Comment
+                highlight default link spliceThinkTag Special
                 highlight default link spliceUserQuestion Statement
                 highlight default link spliceAIResponse Normal
                 highlight default link spliceAIResponseCont Normal
@@ -561,6 +577,11 @@ function configure_history_buffer(buf)
 
         -- Set buffer name
         vim.api.nvim_buf_set_name(buf, "SpliceAI")
+
+        -- Configure folding for think tags
+        vim.api.nvim_buf_set_option(buf, "foldmethod", "syntax")
+        vim.api.nvim_buf_set_option(buf, "foldlevel", 0)
+        vim.api.nvim_buf_set_option(buf, "foldenable", true)
 
         -- Add local keymaps
         vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>lua require('splice.sidebar').toggle()<CR>",
