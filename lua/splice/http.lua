@@ -66,19 +66,26 @@ function M.ollama_request(opts, callback)
                 callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
                 return
             end
-            print(res.body)
-            local ok, decoded = pcall(json_decode, res.body)
-            if not ok or not decoded or not decoded.response then
-                --callback(nil, "Failed to decode Ollama response")
+
+            -- Try to extract all message.content fields from the raw output
+            local full_content = {}
+            for content in (res.body or ""):gmatch([["content"%s*:%s*"([^"]*)"]]) do
+                table.insert(full_content, content)
+            end
+
+            if #full_content == 0 then
+                callback(nil, "Failed to extract any content from Ollama response")
                 return
             end
+
             callback({
-                text = decoded.response,
+                text = table.concat(full_content, ""),
                 model = model,
                 provider = "ollama",
-                raw_response = decoded,
+                raw_response = res.body,
             }, nil)
         end)
+
     })
 end
 
