@@ -29,33 +29,20 @@ local function gather_context_as_text()
             for _, line in ipairs(lines) do
                 table.insert(context_lines, line)
             end
-            table.insert(context_lines, "     `,")
+            table.insert(context_lines, "      `,")
 
-            -- LSP symbols
-            local clients = vim.lsp.get_active_clients({ bufnr = b })
-            if #clients > 0 then
-                local params = { textDocument = { uri = vim.uri_from_bufnr(b) } }
-                local responses = vim.lsp.buf_request_sync(b, "textDocument/documentSymbol", params, 300)
-
-                if responses then
-                    table.insert(context_lines, "      symbols: [")
-                    for _, resp in pairs(responses) do
-                        if resp.result then
-                            local function flatten_symbols(symbols, depth)
-                                depth = depth or 0
-                                for _, sym in ipairs(symbols) do
-                                    local indent = string.rep("  ", depth + 4)
-                                    table.insert(context_lines, indent .. sym.kind .. ": " .. sym.name .. ",")
-                                    if sym.children then
-                                        flatten_symbols(sym.children, depth + 1)
-                                    end
-                                end
-                            end
-                            flatten_symbols(resp.result)
-                        end
-                    end
-                    table.insert(context_lines, "      ],")
+            -- LSP diagnostics
+            local diags = vim.diagnostic.get(b)
+            if #diags > 0 then
+                table.insert(context_lines, "      diagnostics: [")
+                for _, d in ipairs(diags) do
+                    local msg = d.message:gsub("`", "'") -- escape backticks
+                    table.insert(context_lines,
+                        string.format("        %s at line %d: %s,",
+                            d.severity and vim.diagnostic.severity[d.severity] or "Unknown", d.lnum + 1, msg)
+                    )
                 end
+                table.insert(context_lines, "      ],")
             end
 
             table.insert(context_lines, "    },")
@@ -64,7 +51,7 @@ local function gather_context_as_text()
 
     table.insert(context_lines, "  ],")
 
-    -- Project structure (simple file listing)
+    -- Project structure
     table.insert(context_lines, "  project_structure: `")
     local cwd = vim.loop.cwd()
     local files = vim.fn.systemlist("find " .. cwd .. " -type f -not -path '*/.git/*' -maxdepth 3 2>/dev/null")
@@ -77,6 +64,7 @@ local function gather_context_as_text()
 
     return table.concat(context_lines, "\n")
 end
+
 
 
 
