@@ -278,7 +278,14 @@ render_history = function()
 
                     -- Add processed lines with consistent indentation to maintain proper alignment
                     -- Use special prefix to ensure all response lines have consistent highlighting
-                    local prefix_padding = string.rep(" ", vim.api.nvim_strwidth(response_prefix))
+                    -- Use string length as fallback for older Neovim versions that don't have strwidth
+                    local prefix_width = response_prefix:len()
+                    if vim.fn.exists("*strwidth") == 1 then
+                        prefix_width = vim.fn.strwidth(response_prefix)
+                    elseif vim.api.nvim_strwidth then
+                        prefix_width = vim.api.nvim_strwidth(response_prefix)
+                    end
+                    local prefix_padding = string.rep(" ", prefix_width)
                     for _, line in ipairs(processed_lines) do
                         -- We ensure all continuation lines start with exactly the same amount of space
                         -- as the original prefix to maintain alignment
@@ -317,8 +324,11 @@ render_history = function()
         end
         
         -- Re-apply syntax highlighting to ensure consistent colors
-        vim.api.nvim_buf_call(history_buf, function()
-            vim.cmd("syntax on")
+        -- Use pcall to handle any potential errors with syntax highlighting
+        pcall(function()
+            vim.api.nvim_buf_call(history_buf, function()
+                vim.cmd("syntax on")
+            end)
         end)
 
         -- Set back to non-modifiable to protect content
@@ -471,9 +481,8 @@ function configure_history_buffer(buf)
         vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
         vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
         vim.api.nvim_buf_set_option(buf, "swapfile", false)
-        -- Use a custom filetype to have more control over syntax highlighting
-        -- Using plain text instead of markdown to avoid any automatic markdown highlighting
-        vim.api.nvim_buf_set_option(buf, "filetype", "splice")
+        -- Use text filetype to avoid any complex syntax highlighting rules
+        vim.api.nvim_buf_set_option(buf, "filetype", "text")
         vim.api.nvim_buf_set_option(buf, "modifiable", false)
 
         -- Enable syntax highlighting
@@ -482,30 +491,22 @@ function configure_history_buffer(buf)
 
             -- Define custom syntax for code blocks
             vim.cmd([[
-                " Clear all Markdown syntax highlighting that might interfere with our custom rules
-                syntax clear markdownCodeBlock
-                syntax clear markdownCode
-                syntax clear markdownIndentCode
-                
                 " Only apply code block highlighting to fenced code blocks
                 syntax region spliceCodeBlock start=/^\s*```/ end=/^\s*```/ contains=spliceCodeLang
                 syntax match spliceCodeLang /```\w\+/ contained
                 highlight link spliceCodeBlock Comment
                 highlight link spliceCodeLang Keyword
                 
-                " Ensure ALL text in the buffer uses Normal highlighting by default
-                syntax match spliceText /^.*$/
-                highlight link spliceText Normal
-                
-                " Ensure user questions are consistently highlighted
+                " Use a simpler syntax highlighting approach that's more compatible
+                " Define highlighting for user questions and AI responses
                 syntax match spliceUserQuestion /^You:.*$/
-                highlight link spliceUserQuestion Statement
-                
-                " Ensure AI responses are consistently highlighted 
                 syntax match spliceAIResponse /^AI.*$/
                 syntax match spliceAIResponseCont /^\s\+.*$/
-                highlight link spliceAIResponse Normal
-                highlight link spliceAIResponseCont Normal
+                
+                " Apply highlighting (with fallbacks for different Neovim versions)
+                highlight default link spliceUserQuestion Statement
+                highlight default link spliceAIResponse Normal
+                highlight default link spliceAIResponseCont Normal
             ]])
         end)
 
