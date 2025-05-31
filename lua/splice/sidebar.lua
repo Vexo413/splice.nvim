@@ -859,12 +859,8 @@ function M.setup(cfg)
     end
 
     -- Set up keymaps
-    vim.api.nvim_set_keymap("n", "<leader>as", "<cmd>lua require('splice.sidebar').toggle()<CR>",
-        { noremap = true, silent = true, desc = "Toggle Splice AI Sidebar" })
-    vim.api.nvim_set_keymap("n", "<leader>ap", "<cmd>lua require('splice.sidebar').prompt()<CR>",
-        { noremap = true, silent = true, desc = "Open Splice AI prompt" })
-    vim.api.nvim_set_keymap("n", "<leader>aa", "<cmd>lua require('splice.sidebar').prompt_and_focus()<CR>",
-        { noremap = true, silent = true, desc = "Open AI sidebar and focus prompt" })
+    vim.api.nvim_set_keymap("n", "<leader>aa", "<cmd>lua require('splice.sidebar').toggle()<CR>",
+        { noremap = true, silent = true, desc = "Ask Splice AI Sidebar" })
     vim.api.nvim_set_keymap("n", "<leader>af", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
         { noremap = true, silent = true, desc = "Toggle focus between prompt and sidebar" })
 
@@ -872,12 +868,6 @@ function M.setup(cfg)
     vim.api.nvim_create_user_command("SpliceToggle", function()
         require('splice.sidebar').toggle()
     end, { desc = "Toggle Splice AI Sidebar" })
-    vim.api.nvim_create_user_command("SplicePrompt", function()
-        require('splice.sidebar').prompt()
-    end, { desc = "Open Splice AI prompt" })
-    vim.api.nvim_create_user_command("SplicePromptFocus", function()
-        require('splice.sidebar').prompt_and_focus()
-    end, { desc = "Open Splice AI sidebar and focus prompt" })
 end
 
 function M.toggle()
@@ -962,14 +952,18 @@ function M.toggle_focus()
         -- If prompt window is current window, switch to sidebar
         local current_win = vim.api.nvim_get_current_win()
         if prompt_win and current_win == prompt_win then
+            print("focus_sidebar")
             focus_sidebar()
             -- If sidebar window is current window, switch to prompt
         elseif sidebar_win and current_win == sidebar_win then
+            print("focus_prompt")
             focus_prompt()
             -- Otherwise, try to determine which is visible and switch accordingly
         elseif prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
+            print("focus_prompt")
             focus_prompt()
         elseif sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
+            print("focus_sidebar")
             focus_sidebar()
         end
     end)
