@@ -11,7 +11,7 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 - 📚 History tracking of AI interactions
 - 🔄 Session persistence
 - 🎨 Syntax highlighting for code blocks in sidebar
-- ⌨️ Integrated prompt editor with write-and-save workflow
+- ⌨️ Integrated prompt editor with Ctrl-S submission workflow
 
 ## Screenshots
 
@@ -126,7 +126,7 @@ require('splice').setup({
 Default keybindings:
 
 - `<leader>as` - Toggle the AI sidebar
-- `<leader>ap` - Open the popup AI prompt input
+- `<leader>ap` - Open a popup for quick AI prompts
 - `<leader>aa` - Open sidebar with integrated prompt editor focused
 - `<leader>af` - Toggle focus between sidebar and prompt editor
 - `<leader>ai` - Trigger inline AI suggestion
@@ -135,13 +135,15 @@ Default keybindings:
 
 In the sidebar:
 - `q` - Close the sidebar
-- `p` - Open the popup AI prompt input
+- `p` - Open a popup for quick AI prompts
 - `<leader>af` - Switch focus to the prompt editor
 
 In the integrated prompt editor:
+In the prompt editor:
 - Write your prompt in the bottom section of the sidebar
-- Save the buffer (`:w`) to submit your prompt to the AI
+- Press `Ctrl-S` to submit your prompt to the AI (or Enter in normal mode)
 - `<leader>af` or `<C-f>` (in insert mode) - Switch focus to the response area
+- `Esc` in normal mode - Switch focus to the response area
 - The editor automatically clears after submission while preserving instructions
 
 In diff view:
