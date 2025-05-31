@@ -44,10 +44,16 @@ function M.ollama_request(opts, callback)
     local context = opts.context or {}
     local model = opts.model or (config.ollama and config.ollama.default_model) or "codellama"
     local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
+    local buffer_lines = context.buffer or {}
+    local filetype = context.filetype or "text"
+    local context_message = "The user is working on a " .. filetype .. " file with the following content:\n" ..
+        table.concat(buffer_lines, "\n")
 
-    local messages = context.messages or {
-        { role = "user", content = prompt }
+    local messages = {
+        { role = "system", content = context_message },
+        { role = "user",   content = prompt }
     }
+
 
     local payload = {
         model = model,
