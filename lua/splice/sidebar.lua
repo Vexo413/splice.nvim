@@ -527,6 +527,7 @@ local function submit_prompt()
     -- Filter out comment lines and empty lines
     local prompt_lines = {}
     for _, line in ipairs(lines) do
+        print("line:", line)
         if not line:match("^%s*--") then
             print("no comment")
             if line:match("%S") then
@@ -536,7 +537,6 @@ local function submit_prompt()
         end
     end
 
-    print("hello 2")
 
     if #prompt_lines > 0 then
         local prompt_text = table.concat(prompt_lines, "\n")
