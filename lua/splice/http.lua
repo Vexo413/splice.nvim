@@ -54,14 +54,14 @@ function M.ollama_request(opts, callback)
         end)
         return
     end
-    
+
     local config = opts.config or {}
     local prompt = opts.prompt
     local context = opts.context or {}
     local model = opts.model or (config.ollama and config.ollama.default_model) or "codellama"
     local endpoint = (config.ollama and config.ollama.endpoint) or "http://localhost:11434"
     local context_message = "You are a helpful coding assistant. Here is the context of the users workspace: " ..
-        context
+        context .. "*****COTEXT END HERE*****"
 
     local messages = {
         { role = "system", content = context_message },
@@ -89,19 +89,20 @@ function M.ollama_request(opts, callback)
             callback = vim.schedule_wrap(function(res)
                 -- Guard against callback not being a function
                 if type(safe_callback) ~= "function" then
-                    vim.notify("[splice.nvim] Error: callback is not a function in HTTP response handler", vim.log.levels.ERROR)
+                    vim.notify("[splice.nvim] Error: callback is not a function in HTTP response handler",
+                        vim.log.levels.ERROR)
                     return
                 end
-                
+
                 if not res or res.status ~= 200 then
                     safe_callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
                     return
                 end
-                
+
                 -- Try to extract content from response
                 local content = ""
                 local ok, json_res = pcall(json_decode, res.body)
-                
+
                 if ok and json_res and json_res.message and json_res.message.content then
                     content = json_res.message.content
                 elseif ok and json_res and json_res.response then
@@ -113,7 +114,7 @@ function M.ollama_request(opts, callback)
                         content = content_match
                     end
                 end
-                
+
                 -- Normalize newlines in content
                 if content and content ~= "" then
                     content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
@@ -121,12 +122,12 @@ function M.ollama_request(opts, callback)
                     safe_callback(nil, "Failed to extract content from Ollama response")
                     return
                 end
-                
+
                 -- Process the text to handle escaping and cleanup
                 local processed_text = content
                 -- Unescape any escaped quotes or special characters in JSON response
                 processed_text = processed_text:gsub("\\\"", "\""):gsub("\\n", "\n"):gsub("\\t", "\t")
-                
+
                 safe_callback({
                     text = processed_text,
                     model = model,
@@ -137,7 +138,7 @@ function M.ollama_request(opts, callback)
             end)
         })
     end)
-    
+
     if not ok then
         vim.schedule(function()
             vim.notify("[splice.nvim] Error in HTTP request: " .. tostring(err), vim.log.levels.ERROR)
@@ -146,7 +147,7 @@ function M.ollama_request(opts, callback)
             end
         end)
     end
-    
+
     -- Return a dummy cancel function since we're not using streaming
     return {
         cancel = function() end
@@ -162,10 +163,10 @@ function M.openai_request(_, callback)
             cancel = function() end
         }
     end
-    
+
     -- Store callback in a safe upvalue
     local safe_callback = callback
-    
+
     -- Provide a consistent error response
     local error_msg = "OpenAI requests are not implemented in this build. Only Ollama is supported."
     vim.schedule(function()
@@ -178,7 +179,7 @@ function M.openai_request(_, callback)
             }, error_msg)
         end
     end)
-    
+
     -- Return a dummy cancel function for consistency
     return {
         cancel = function() end
@@ -194,10 +195,10 @@ function M.anthropic_request(_, callback)
             cancel = function() end
         }
     end
-    
+
     -- Store callback in a safe upvalue
     local safe_callback = callback
-    
+
     -- Provide a consistent error response
     local error_msg = "Anthropic requests are not implemented in this build. Only Ollama is supported."
     vim.schedule(function()
@@ -210,7 +211,7 @@ function M.anthropic_request(_, callback)
             }, error_msg)
         end
     end)
-    
+
     -- Return a dummy cancel function for consistency
     return {
         cancel = function() end
@@ -230,7 +231,7 @@ function M.ai_request(opts, callback)
 
     -- Store callback in a safe upvalue
     local safe_callback = callback
-    
+
     local config = opts.config or {}
     local provider = opts.provider or (config.provider or "ollama")
     if provider == "ollama" then
