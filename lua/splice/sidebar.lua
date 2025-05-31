@@ -745,7 +745,7 @@ open_sidebar = function()
     -- Create a horizontal split at the bottom for the prompt area (roughly 20% of height)
     vim.api.nvim_win_call(sidebar_win, function()
         --vim.cmd("set nosplitbelow")
-        vim.cmd("aboveright split")
+        vim.cmd("aboveleft split")
         --vim.cmd("resize -10") -- Make it smaller
     end)
 
