@@ -16,15 +16,6 @@ local function gather_context_as_text()
     local bufs = vim.api.nvim_list_bufs()
 
     table.insert(context_lines, "{")
-    table.insert(context_lines, "  chat_history: [")
-    for _, entry in ipairs(chat_history) do
-        table.insert(context_lines, "    {")
-        table.insert(context_lines, "      prompt: `" .. (entry.prompt or "") .. "`,")
-        table.insert(context_lines, "      response: `" .. (entry.response or "") .. "`,")
-        table.insert(context_lines, "    },")
-    end
-    table.insert(context_lines, "  ]")
-
     table.insert(context_lines, "  buffers: [")
     for _, b in ipairs(bufs) do
         if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_get_name(b) ~= "" then
