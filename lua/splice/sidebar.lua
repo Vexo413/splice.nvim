@@ -130,7 +130,6 @@ local function prompt_input()
 end
 
 function M.setup(cfg)
-    print("Sidebar setup")
     config = cfg
     vim.api.nvim_set_keymap("n", "<leader>as", "<cmd>lua require('splice.sidebar').toggle()<CR>",
         { noremap = true, silent = true })
@@ -142,7 +141,6 @@ function M.setup(cfg)
 end
 
 function M.toggle()
-    print("Sidebar toggle")
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         close_sidebar()
     else
