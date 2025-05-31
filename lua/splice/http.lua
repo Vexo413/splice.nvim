@@ -66,28 +66,17 @@ function M.ollama_request(opts, callback)
                 callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
                 return
             end
-            local full_content = {}
-            local last_chunk = nil
-            for line in (res.body or ""):gmatch("[^\r\n]+") do
-                local ok, chunk = pcall(json_decode, line)
-                if ok and chunk then
-                    last_chunk = chunk
-                    if chunk.message and chunk.message.content then
-                        table.insert(full_content, chunk.message.content)
-                    end
-                end
-            end
-
-            if #full_content == 0 then
-                callback(nil, "Failed to decode Ollama streamed response")
+            print(res.body)
+            local ok, decoded = pcall(json_decode, res.body)
+            if not ok or not decoded or not decoded.response then
+                --callback(nil, "Failed to decode Ollama response")
                 return
             end
-
             callback({
-                text = table.concat(full_content, ""),
+                text = decoded.response,
                 model = model,
                 provider = "ollama",
-                raw_response = res.body,
+                raw_response = decoded,
             }, nil)
         end)
     })
