@@ -25,6 +25,7 @@ M.config = {
     -- UI and workflow options
     inline_trigger = "///",
     sidebar_width = 40,
+    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
     history_file = vim.fn.stdpath("data") .. "/splice_history.json",
     session_file = vim.fn.stdpath("data") .. "/splice_session.json",
 }

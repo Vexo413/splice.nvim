@@ -57,6 +57,7 @@ require('splice').setup({
     sidebar_position = "right", -- Position the sidebar on the right side
     focus_on_open = false,    -- Don't focus the sidebar when opening it
     restore_on_startup = true, -- Restore sidebar if it was open in the last session
+    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
     -- File storage options
     history_file = vim.fn.stdpath("data") .. "/splice_history.json",
     session_file = vim.fn.stdpath("data") .. "/splice_session.json",
@@ -77,6 +78,7 @@ require('splice').setup({
 --   sidebar_position = "right",  -- Position the sidebar on the right side
 --   focus_on_open = false,       -- Don't focus the sidebar when opening it
 --   restore_on_startup = true,   -- Restore sidebar if it was open in the last session
+--   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
 -- })
 
 -- Example 3: Anthropic Claude
@@ -94,6 +96,7 @@ require('splice').setup({
 --   sidebar_position = "left",   -- Example of positioning sidebar on the left
 --   focus_on_open = true,        -- Example of focusing the sidebar when opening
 --   restore_on_startup = false,  -- Example of not restoring sidebar on startup
+--   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
 -- })
 
 -- ======================================================================

@@ -64,6 +64,142 @@ local function gather_context_as_text()
     return table.concat(context_lines, "\n")
 end
 
+-- Helper function to detect and process code blocks for syntax highlighting
+local function process_code_blocks(text)
+    local result = {}
+    local in_code_block = false
+    local code_block_lines = {}
+    local current_lang = nil
+    local line_mapping = {} -- Maps result line numbers to original line numbers
+
+    -- Split the text into lines
+    local lines = {}
+    for line in text:gmatch("([^\n]*)\n?") do
+        table.insert(lines, line)
+    end
+
+    local i = 1
+    while i <= #lines do
+        local line = lines[i]
+
+        -- Detect code block start: ```language
+        local lang = line:match("^%s*```%s*(%w+)")
+        if lang and not in_code_block then
+            in_code_block = true
+            current_lang = lang
+            table.insert(result, line) -- Keep the opening marker
+            table.insert(line_mapping, i)
+            code_block_lines = {}
+            i = i + 1
+            -- Detect code block end: ```
+        elseif line:match("^%s*```%s*$") and in_code_block then
+            in_code_block = false
+
+            -- Store code block info for later highlighting
+            if #code_block_lines > 0 then
+                -- Store line indexes for syntax highlighting
+                local start_idx = #result - #code_block_lines
+                local end_idx = #result
+
+                -- Add metadata for highlighting
+                local start_line = #result - #code_block_lines + 1
+                _G.splice_code_blocks = _G.splice_code_blocks or {}
+                table.insert(_G.splice_code_blocks, {
+                    buffer = sidebar_buf,
+                    lang = current_lang,
+                    start_line = start_line,
+                    end_line = start_line + #code_block_lines - 1,
+                    lines = code_block_lines
+                })
+            end
+
+            table.insert(result, line) -- Keep the closing marker
+            table.insert(line_mapping, i)
+            current_lang = nil
+            i = i + 1
+        elseif in_code_block then
+            -- Inside code block, collect lines
+            table.insert(result, line)
+            table.insert(line_mapping, i)
+            table.insert(code_block_lines, line)
+            i = i + 1
+        else
+            -- Regular text
+            table.insert(result, line)
+            table.insert(line_mapping, i)
+            i = i + 1
+        end
+    end
+
+    return result, line_mapping
+end
+
+-- Function to apply syntax highlighting to code blocks
+local function apply_code_block_highlighting(buf)
+    -- Skip if disabled in config or if no code blocks to process
+    if not config.highlight_code_blocks or not _G.splice_code_blocks then return end
+
+    -- Process code blocks that belong to this buffer
+    local blocks_to_process = {}
+    for i, block in ipairs(_G.splice_code_blocks) do
+        if block.buffer == buf then
+            table.insert(blocks_to_process, block)
+            -- Remove from global table after processing
+            _G.splice_code_blocks[i] = nil
+        end
+    end
+
+    -- Clean up the global table
+    local new_blocks = {}
+    for _, block in ipairs(_G.splice_code_blocks) do
+        if block then
+            table.insert(new_blocks, block)
+        end
+    end
+    _G.splice_code_blocks = new_blocks
+
+    -- Apply highlighting to each block
+    for _, block in ipairs(blocks_to_process) do
+        -- Create a temporary buffer with the right filetype
+        local temp_buf = vim.api.nvim_create_buf(false, true)
+
+        -- Set the buffer's filetype
+        pcall(function()
+            vim.api.nvim_buf_set_option(temp_buf, "filetype", block.lang)
+            vim.api.nvim_buf_set_lines(temp_buf, 0, -1, false, block.lines)
+
+            -- Force syntax highlighting
+            vim.cmd("syntax on")
+
+            -- Wait for syntax highlighting to be applied
+            vim.defer_fn(function()
+                -- Copy highlighting from temp buffer to sidebar
+                if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_buf_is_valid(temp_buf) then
+                    for i = 1, #block.lines do
+                        local line_idx = block.start_line + i - 1
+
+                        -- Get highlighting from temp buffer
+                        local hl = vim.api.nvim_buf_get_extmarks(
+                            temp_buf, -1, { i - 1, 0 }, { i - 1, -1 }, { details = true })
+
+                        -- Apply to sidebar buffer
+                        for _, mark in ipairs(hl) do
+                            local id, row, col, details = unpack(mark)
+                            if details and details.hl_group then
+                                vim.api.nvim_buf_add_highlight(
+                                    buf, 0, details.hl_group, line_idx, col, col + details.end_col)
+                            end
+                        end
+                    end
+                end
+
+                -- Clean up temporary buffer
+                vim.api.nvim_buf_delete(temp_buf, { force = true })
+            end, 100) -- Small delay to ensure syntax is processed
+        end)
+    end
+end
+
 -- Define the render_sidebar function that updates the sidebar content
 render_sidebar = function()
     -- Create buffer if it doesn't exist or isn't valid
@@ -71,7 +207,7 @@ render_sidebar = function()
         sidebar_buf = vim.api.nvim_create_buf(false, true)
         configure_sidebar_buffer(sidebar_buf)
     end
-    
+
     local lines = {}
 
     if #chat_history == 0 then
@@ -83,13 +219,13 @@ render_sidebar = function()
             if not prompt_text or prompt_text == "" then
                 prompt_text = "[Empty prompt]"
             end
-            
+
             -- Handle multiline prompts by splitting them too
             if prompt_text:find("\n") then
                 local first_line, rest = prompt_text:match("^([^\n]*)\n(.*)")
                 if first_line then
                     table.insert(lines, "You: " .. first_line)
-                    
+
                     -- Add remaining lines with indentation
                     for line in rest:gmatch("([^\n]*)\n?") do
                         table.insert(lines, "    " .. line)
@@ -114,16 +250,29 @@ render_sidebar = function()
             else
                 response_prefix = "AI: "
             end
-            
+
             -- Handle multiline responses by splitting into separate lines
             if response_text:find("\n") then
                 -- Add the first line with the prefix
                 local first_line, rest = response_text:match("^([^\n]*)\n(.*)")
                 if first_line then
                     table.insert(lines, response_prefix .. first_line)
-                    
-                    -- Split remaining text into lines and add with indentation
-                    for line in rest:gmatch("([^\n]*)\n?") do
+
+                    -- Process remaining text, using code block processing if enabled
+                    local processed_lines = {}
+                    if rest then
+                        if config.highlight_code_blocks then
+                            processed_lines, _ = process_code_blocks(rest)
+                        else
+                            -- Simple line-by-line processing without code block detection
+                            for line in rest:gmatch("([^\n]*)\n?") do
+                                table.insert(processed_lines, line)
+                            end
+                        end
+                    end
+
+                    -- Add processed lines with indentation
+                    for _, line in ipairs(processed_lines) do
                         table.insert(lines, "    " .. line)
                     end
                 else
@@ -140,22 +289,28 @@ render_sidebar = function()
     end
 
     -- Safe update of buffer content with error handling
-        local ok, err = pcall(function()
-            -- Make buffer modifiable before setting lines
-            vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
-        
-            -- Ensure all lines are valid strings (important for response handling)
-            for i, line in ipairs(lines) do
-                if type(line) ~= "string" then
-                    lines[i] = tostring(line)
-                end
+    local ok, err = pcall(function()
+        -- Make buffer modifiable before setting lines
+        vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
+
+        -- Ensure all lines are valid strings (important for response handling)
+        for i, line in ipairs(lines) do
+            if type(line) ~= "string" then
+                lines[i] = tostring(line)
             end
-        
-            vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
-            -- Set back to non-modifiable to protect content
-            vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
-        end)
-    
+        end
+
+        vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
+
+        -- Apply syntax highlighting to code blocks if enabled
+        if config and config.highlight_code_blocks then
+            apply_code_block_highlighting(sidebar_buf)
+        end
+
+        -- Set back to non-modifiable to protect content
+        vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+    end)
+
     if not ok then
         vim.schedule(function()
             vim.notify("[splice.nvim] Error rendering sidebar: " .. tostring(err), vim.log.levels.ERROR)
@@ -175,7 +330,7 @@ local function ai_chat(prompt, context, callback)
         -- Return dummy cancel function
         return function() end
     end
-    
+
     -- Pre-process prompt to ensure consistent handling
     prompt = prompt or ""
 
@@ -256,10 +411,10 @@ local function ai_chat(prompt, context, callback)
             if entry_index and entry_index <= #chat_history then
                 -- Store response text, ensuring it's a string
                 local response_text = result.text or ""
-                
+
                 -- Normalize newlines to ensure consistent rendering
                 response_text = response_text:gsub("\r\n", "\n"):gsub("\r", "\n")
-                
+
                 chat_history[entry_index].response = response_text
                 chat_history[entry_index].provider = result.provider
                 chat_history[entry_index].model = result.model
@@ -305,6 +460,21 @@ local function configure_sidebar_buffer(buf)
             vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
             vim.api.nvim_buf_set_option(buf, "modifiable", false)
 
+            -- Enable syntax highlighting if configured
+            if config and config.highlight_code_blocks then
+                vim.api.nvim_buf_call(buf, function()
+                    vim.cmd("syntax on")
+                    
+                    -- Define custom syntax for code blocks
+                    vim.cmd([[
+                        syntax region spliceCodeBlock start=/^\s*```/ end=/^\s*```/ contains=spliceCodeLang
+                        syntax match spliceCodeLang /```\w\+/ contained
+                        highlight link spliceCodeBlock Comment
+                        highlight link spliceCodeLang Keyword
+                    ]])
+                end)
+            end
+
             -- Set buffer name
             vim.api.nvim_buf_set_name(buf, "SpliceAI")
 
@@ -314,14 +484,14 @@ local function configure_sidebar_buffer(buf)
             vim.api.nvim_buf_set_keymap(buf, "n", "p", "<cmd>lua require('splice.sidebar').prompt()<CR>",
                 { noremap = true, silent = true })
         end)
-    
-        if not ok then
-            vim.schedule(function()
-                vim.notify("[splice.nvim] Error configuring sidebar buffer: " .. tostring(err), vim.log.levels.ERROR)
-            end)
-        end
-    
-        return buf
+
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error configuring sidebar buffer: " .. tostring(err), vim.log.levels.ERROR)
+        end)
+    end
+
+    return buf
 end
 
 -- Determine if sidebar exists and is visible in any window
@@ -347,7 +517,7 @@ open_sidebar = function()
         sidebar_buf = vim.api.nvim_create_buf(false, true)
         configure_sidebar_buffer(sidebar_buf)
         render_sidebar()
-end
+    end
 
     -- If sidebar is already visible, just focus its window
     if is_sidebar_visible() then
@@ -361,10 +531,10 @@ end
 
     -- Get width from config
     local width = (config and config.sidebar_width) or 40
-    
+
     -- Save current window for later focus
     local current_win = vim.api.nvim_get_current_win()
-    
+
     -- Create a new vertical split based on position config
     local position = (config and config.sidebar_position) or "right"
     if position == "left" then
@@ -372,32 +542,40 @@ end
     else
         vim.cmd("botright vertical " .. width .. " split")
     end
-    
+
     -- Get the new window and set the buffer
     sidebar_win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(sidebar_win, sidebar_buf)
-    
-        -- Add window options with error handling
-        local ok, err = pcall(function()
-            vim.api.nvim_win_set_option(sidebar_win, "number", false)
-            vim.api.nvim_win_set_option(sidebar_win, "relativenumber", false)
-            vim.api.nvim_win_set_option(sidebar_win, "wrap", true)
-            vim.api.nvim_win_set_option(sidebar_win, "signcolumn", "no")
-            vim.api.nvim_win_set_option(sidebar_win, "foldcolumn", "0")
-            vim.api.nvim_win_set_option(sidebar_win, "winfixwidth", true)
-        
-            -- Add window title if supported (Neovim 0.8+)
-            pcall(function()
-                vim.api.nvim_win_set_option(sidebar_win, "winbar", "Splice AI Assistant")
-            end)
-        end)
-    
-        if not ok then
-            vim.schedule(function()
-                vim.notify("[splice.nvim] Error setting sidebar window options: " .. tostring(err), vim.log.levels.ERROR)
+
+    -- Add window options with error handling
+    -- Safely set window options
+    local ok, err = pcall(function()
+        vim.api.nvim_win_set_option(sidebar_win, "number", false)
+        vim.api.nvim_win_set_option(sidebar_win, "relativenumber", false)
+        vim.api.nvim_win_set_option(sidebar_win, "wrap", true)
+        vim.api.nvim_win_set_option(sidebar_win, "signcolumn", "no")
+        vim.api.nvim_win_set_option(sidebar_win, "foldcolumn", "0")
+        vim.api.nvim_win_set_option(sidebar_win, "winfixwidth", true)
+
+        -- Enable syntax in the sidebar if code highlighting is enabled
+        if config and config.highlight_code_blocks then
+            vim.api.nvim_win_call(sidebar_win, function()
+                vim.cmd("syntax on")
             end)
         end
-    
+
+        -- Add window title if supported (Neovim 0.8+)
+        pcall(function()
+            vim.api.nvim_win_set_option(sidebar_win, "winbar", "Splice AI Assistant")
+        end)
+    end)
+
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error setting sidebar window options: " .. tostring(err), vim.log.levels.ERROR)
+        end)
+    end
+
     -- Add a buffer-local autocommand to prevent closing the window with :q
     vim.api.nvim_create_autocmd("BufWinLeave", {
         buffer = sidebar_buf,
@@ -405,12 +583,12 @@ end
             sidebar_win = nil
         end
     })
-    
+
     -- Return focus to original window if not explicitly focusing sidebar
     if not (config and config.focus_on_open) then
         vim.api.nvim_set_current_win(current_win)
     end
-    
+
     -- Render the sidebar content
     render_sidebar()
 end
@@ -423,13 +601,13 @@ close_sidebar = function()
             local current_win = vim.api.nvim_get_current_win()
             vim.api.nvim_set_current_win(win)
             vim.cmd("close")
-            
+
             -- If we were in the sidebar, Vim will automatically focus another window
             -- If not, go back to the window we were in
             if current_win ~= win and vim.api.nvim_win_is_valid(current_win) then
                 vim.api.nvim_set_current_win(current_win)
             end
-            
+
             sidebar_win = nil
             break
         end
@@ -456,7 +634,7 @@ function M.setup(cfg)
             { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" })
         vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
     end
-    
+
     -- Restore sidebar if configured
     if config.restore_on_startup then
         -- Try to load session data
@@ -525,7 +703,7 @@ function M.prompt()
 
             -- Normalize input newlines for consistent handling
             input = input:gsub("\r\n", "\n"):gsub("\r", "\n")
-            
+
             -- Add to chat history immediately to show user input
             local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
             table.insert(chat_history, {
