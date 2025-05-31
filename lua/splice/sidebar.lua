@@ -96,7 +96,11 @@ local function render_sidebar()
         end
     end
     
+    -- Make buffer modifiable before setting lines
+    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
     vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
+    -- Set back to non-modifiable to protect content
+    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
 end
 
 local function open_sidebar()
@@ -127,11 +131,11 @@ local function open_sidebar()
         title = "Splice AI",
     })
     
-    -- Set buffer options
-    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+    -- Set buffer options after rendering
     vim.api.nvim_buf_set_option(sidebar_buf, "filetype", "markdown")
     
     render_sidebar()
+    -- We don't need to set modifiable to false here as render_sidebar already does that
 end
 
 local function close_sidebar()
@@ -157,6 +161,7 @@ function M.setup(cfg)
     -- Initialize the sidebar buffer on setup
     if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
         sidebar_buf = vim.api.nvim_create_buf(false, true)
+        -- Buffer is modifiable by default when created
         vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"})
     end
     
@@ -184,6 +189,7 @@ function M.prompt()
         -- Ensure sidebar buffer exists
         if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
             sidebar_buf = vim.api.nvim_create_buf(false, true)
+            -- Buffer is modifiable by default when created
             vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"})
         end
         
