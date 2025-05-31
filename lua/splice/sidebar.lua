@@ -110,7 +110,7 @@ render_sidebar = function()
     vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
 end
 
-local function ai_chat(prompt, context, cb)
+local function ai_chat(prompt, context, callback)
     -- Generate a unique ID for this chat entry to track it
     local chat_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
 
@@ -155,8 +155,8 @@ local function ai_chat(prompt, context, cb)
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                if type(cb) == "function" then
-                    cb(error_message)
+                if type(callback) == "function" then
+                    callback(error_message)
                 end
             end)
             return
@@ -173,8 +173,8 @@ local function ai_chat(prompt, context, cb)
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                if type(cb) == "function" then
-                    cb(error_message)
+                if type(callback) == "function" then
+                    callback(error_message)
                 end
             end)
             return
@@ -192,10 +192,10 @@ local function ai_chat(prompt, context, cb)
                 render_sidebar()
             end
 
-            -- Only call cb and save to history on final output (not streaming)
+            -- Only call callback and save to history on final output (not streaming)
             if not result.streaming then
-                if type(cb) == "function" then
-                    cb(result.text)
+                if type(callback) == "function" then
+                    callback(result.text)
                 end
                 pcall(function()
                     local history_module = require('splice.history')
