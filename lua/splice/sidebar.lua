@@ -9,7 +9,6 @@ local http = require('splice.http')
 local render_history
 local open_sidebar
 local close_sidebar
-local prompt_input
 local setup_prompt_buffer
 local focus_prompt
 local focus_history
@@ -214,9 +213,7 @@ render_history = function()
 
     local lines = {}
 
-    if #chat_history == 0 then
-        lines = { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" }
-    else
+    if #chat_history ~= 0 then
         for _, entry in ipairs(chat_history) do
             -- Format the prompt, handling nil values
             local prompt_text = entry.prompt
@@ -597,14 +594,6 @@ setup_prompt_buffer = function()
     -- Set buffer name
     vim.api.nvim_buf_set_name(prompt_buf, "SplicePrompt")
 
-    -- Initial content with instructions
-    vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-        "-- Type your prompt here and save (:w) or press Ctrl+S to submit",
-        "-- Press <leader>af to switch focus to the response area",
-        "-- Press Ctrl+L to clear the prompt",
-        ""
-    })
-
     -- Handle saving to submit the prompt
     vim.api.nvim_create_autocmd("BufWriteCmd", {
         buffer = prompt_buf,
@@ -828,10 +817,6 @@ function M.setup(cfg)
     if not history_buf or not vim.api.nvim_buf_is_valid(history_buf) then
         history_buf = vim.api.nvim_create_buf(false, true)
         configure_history_buffer(history_buf)
-        -- Buffer is modifiable by default when created
-        vim.api.nvim_buf_set_option(history_buf, "modifiable", true)
-        vim.api.nvim_buf_set_lines(history_buf, 0, -1, false,
-            { "Splice AI Chat", "", "Use <leader>ap to start a conversation" })
         vim.api.nvim_buf_set_option(history_buf, "modifiable", false)
     end
 
