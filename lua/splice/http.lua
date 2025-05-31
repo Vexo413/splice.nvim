@@ -78,14 +78,23 @@ function M.ollama_request(opts, callback)
         stream = false, -- Disable streaming to avoid plenary.job callback issues
     }
 
+    -- Save the callback in an upvalue to avoid closure issues
+    local safe_callback = callback
+
     -- Use a simpler approach without streaming to avoid callback issues
     local ok, err = pcall(function()
         curl.post(endpoint .. "/api/chat", {
             body = json_encode(payload),
             headers = { ["Content-Type"] = "application/json" },
             callback = vim.schedule_wrap(function(res)
+                -- Guard against callback not being a function
+                if type(safe_callback) ~= "function" then
+                    vim.notify("[splice.nvim] Error: callback is not a function in HTTP response handler", vim.log.levels.ERROR)
+                    return
+                end
+                
                 if not res or res.status ~= 200 then
-                    callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
+                    safe_callback(nil, "Ollama API error: " .. (res and res.body or "unknown error"))
                     return
                 end
                 
@@ -106,11 +115,11 @@ function M.ollama_request(opts, callback)
                 end
                 
                 if content == "" then
-                    callback(nil, "Failed to extract content from Ollama response")
+                    safe_callback(nil, "Failed to extract content from Ollama response")
                     return
                 end
                 
-                callback({
+                safe_callback({
                     text = content,
                     model = model,
                     provider = "ollama",
@@ -124,7 +133,9 @@ function M.ollama_request(opts, callback)
     if not ok then
         vim.schedule(function()
             vim.notify("[splice.nvim] Error in HTTP request: " .. tostring(err), vim.log.levels.ERROR)
-            callback(nil, "Error in HTTP request: " .. tostring(err))
+            if type(safe_callback) == "function" then
+                safe_callback(nil, "Error in HTTP request: " .. tostring(err))
+            end
         end)
     end
     
@@ -139,11 +150,18 @@ function M.openai_request(_, callback)
         vim.schedule(function()
             vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
         end)
-        return
+        return {
+            cancel = function() end
+        }
     end
     
+    -- Store callback in a safe upvalue
+    local safe_callback = callback
+    
     vim.schedule(function()
-        callback(nil, "OpenAI requests are not implemented in this build. Only Ollama is supported.")
+        if type(safe_callback) == "function" then
+            safe_callback(nil, "OpenAI requests are not implemented in this build. Only Ollama is supported.")
+        end
     end)
     
     -- Return a dummy cancel function for consistency
@@ -157,11 +175,18 @@ function M.anthropic_request(_, callback)
         vim.schedule(function()
             vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
         end)
-        return
+        return {
+            cancel = function() end
+        }
     end
     
+    -- Store callback in a safe upvalue
+    local safe_callback = callback
+    
     vim.schedule(function()
-        callback(nil, "Anthropic requests are not implemented in this build. Only Ollama is supported.")
+        if type(safe_callback) == "function" then
+            safe_callback(nil, "Anthropic requests are not implemented in this build. Only Ollama is supported.")
+        end
     end)
     
     -- Return a dummy cancel function for consistency
@@ -181,17 +206,22 @@ function M.ai_request(opts, callback)
         }
     end
 
+    -- Store callback in a safe upvalue
+    local safe_callback = callback
+    
     local config = opts.config or {}
     local provider = opts.provider or (config.provider or "ollama")
     if provider == "ollama" then
-        return M.ollama_request(opts, callback)
+        return M.ollama_request(opts, safe_callback)
     elseif provider == "openai" then
-        return M.openai_request(opts, callback)
+        return M.openai_request(opts, safe_callback)
     elseif provider == "anthropic" then
-        return M.anthropic_request(opts, callback)
+        return M.anthropic_request(opts, safe_callback)
     else
         vim.schedule(function()
-            callback(nil, "Unknown provider: " .. tostring(provider))
+            if type(safe_callback) == "function" then
+                safe_callback(nil, "Unknown provider: " .. tostring(provider))
+            end
         end)
         return {
             cancel = function() end

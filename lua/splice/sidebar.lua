@@ -66,9 +66,12 @@ end
 
 -- Define the render_sidebar function that updates the sidebar content
 render_sidebar = function()
+    -- Create buffer if it doesn't exist or isn't valid
     if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
         sidebar_buf = vim.api.nvim_create_buf(false, true)
+        configure_sidebar_buffer(sidebar_buf)
     end
+    
     local lines = {}
 
     if #chat_history == 0 then
@@ -99,17 +102,34 @@ render_sidebar = function()
         end
     end
 
-    -- Make buffer modifiable before setting lines
-    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
-    vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
-    -- Set back to non-modifiable to protect content
-    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+    -- Safe update of buffer content with error handling
+    local ok, err = pcall(function()
+        -- Make buffer modifiable before setting lines
+        vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
+        vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
+        -- Set back to non-modifiable to protect content
+        vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+    end)
+    
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error rendering sidebar: " .. tostring(err), vim.log.levels.ERROR)
+        end)
+    end
 end
 
 local function ai_chat(prompt, context, callback)
     -- Generate a unique ID for this chat entry to track it
-    local chat_id = tostring(os.time()) .. "_" .. math.random(1000
-, 9999)
+    local chat_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
+
+    -- Validate callback is a function
+    if callback ~= nil and type(callback) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.nvim] Error: callback must be a function, got " .. type(callback), vim.log.levels.ERROR)
+        end)
+        -- Return dummy cancel function
+        return function() end
+    end
 
     -- We don't need to add a message here - it's already added in prompt_input
     -- Just store the chat_id for tracking
@@ -132,6 +152,9 @@ local function ai_chat(prompt, context, callback)
         return nil
     end
 
+    -- Store callback in a safe upvalue to avoid closure issues
+    local safe_callback = callback
+
     -- Call the actual AI provider through our HTTP client
     local request = http.ai_request({
         config = config,
@@ -148,12 +171,12 @@ local function ai_chat(prompt, context, callback)
                 if not entry_index then
                     entry_index = find_chat_entry()
                 end
-                if entry_index then
+                if entry_index and entry_index <= #chat_history then
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                if type(callback) == "function" then
-                    callback(error_message)
+                if type(safe_callback) == "function" then
+                    safe_callback(error_message)
                 end
             end)
             return
@@ -166,12 +189,12 @@ local function ai_chat(prompt, context, callback)
                 if not entry_index then
                     entry_index = find_chat_entry()
                 end
-                if entry_index then
+                if entry_index and entry_index <= #chat_history then
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                if type(callback) == "function" then
-                    callback(error_message)
+                if type(safe_callback) == "function" then
+                    safe_callback(error_message)
                 end
             end)
             return
@@ -182,7 +205,7 @@ local function ai_chat(prompt, context, callback)
             if not entry_index then
                 entry_index = find_chat_entry()
             end
-            if entry_index then
+            if entry_index and entry_index <= #chat_history then
                 chat_history[entry_index].response = result.text
                 chat_history[entry_index].provider = result.provider
                 chat_history[entry_index].model = result.model
@@ -191,8 +214,8 @@ local function ai_chat(prompt, context, callback)
 
             -- Only call callback and save to history on final output (not streaming)
             if not result.streaming then
-                if type(callback) == "function" then
-                    callback(result.text)
+                if type(safe_callback) == "function" then
+                    safe_callback(result.text)
                 end
                 pcall(function()
                     local history_module = require('splice.history')
@@ -220,23 +243,31 @@ end
 
 -- Add buffer configuration for proper sidebar
 local function configure_sidebar_buffer(buf)
-    -- Buffer-local options for sidebar
-    vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-    vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
-    vim.api.nvim_buf_set_option(buf, "swapfile", false)
-    vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
-    vim.api.nvim_buf_set_option(buf, "modifiable", false)
+        -- Buffer-local options for sidebar
+        local ok, err = pcall(function()
+            vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+            vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
+            vim.api.nvim_buf_set_option(buf, "swapfile", false)
+            vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
+            vim.api.nvim_buf_set_option(buf, "modifiable", false)
 
-    -- Set buffer name
-    vim.api.nvim_buf_set_name(buf, "SpliceAI")
+            -- Set buffer name
+            vim.api.nvim_buf_set_name(buf, "SpliceAI")
 
-    -- Add local keymaps
-    vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>lua require('splice.sidebar').toggle()<CR>",
-        { noremap = true, silent = true })
-    vim.api.nvim_buf_set_keymap(buf, "n", "p", "<cmd>lua require('splice.sidebar').prompt()<CR>",
-        { noremap = true, silent = true })
-
-    return buf
+            -- Add local keymaps
+            vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>lua require('splice.sidebar').toggle()<CR>",
+                { noremap = true, silent = true })
+            vim.api.nvim_buf_set_keymap(buf, "n", "p", "<cmd>lua require('splice.sidebar').prompt()<CR>",
+                { noremap = true, silent = true })
+        end)
+    
+        if not ok then
+            vim.schedule(function()
+                vim.notify("[splice.nvim] Error configuring sidebar buffer: " .. tostring(err), vim.log.levels.ERROR)
+            end)
+        end
+    
+        return buf
 end
 
 -- Determine if sidebar exists and is visible in any window
@@ -292,18 +323,26 @@ end
     sidebar_win = vim.api.nvim_get_current_win()
     vim.api.nvim_win_set_buf(sidebar_win, sidebar_buf)
     
-    -- Set window options
-        vim.api.nvim_win_set_option(sidebar_win, "number", false)
-        vim.api.nvim_win_set_option(sidebar_win, "relativenumber", false)
-        vim.api.nvim_win_set_option(sidebar_win, "wrap", true)
-        vim.api.nvim_win_set_option(sidebar_win, "signcolumn", "no")
-        vim.api.nvim_win_set_option(sidebar_win, "foldcolumn", "0")
-        vim.api.nvim_win_set_option(sidebar_win, "winfixwidth", true)
-    
-        -- Add window title if supported (Neovim 0.8+)
-        pcall(function()
-            vim.api.nvim_win_set_option(sidebar_win, "winbar", "Splice AI Assistant")
+        -- Add window options with error handling
+        local ok, err = pcall(function()
+            vim.api.nvim_win_set_option(sidebar_win, "number", false)
+            vim.api.nvim_win_set_option(sidebar_win, "relativenumber", false)
+            vim.api.nvim_win_set_option(sidebar_win, "wrap", true)
+            vim.api.nvim_win_set_option(sidebar_win, "signcolumn", "no")
+            vim.api.nvim_win_set_option(sidebar_win, "foldcolumn", "0")
+            vim.api.nvim_win_set_option(sidebar_win, "winfixwidth", true)
+        
+            -- Add window title if supported (Neovim 0.8+)
+            pcall(function()
+                vim.api.nvim_win_set_option(sidebar_win, "winbar", "Splice AI Assistant")
+            end)
         end)
+    
+        if not ok then
+            vim.schedule(function()
+                vim.notify("[splice.nvim] Error setting sidebar window options: " .. tostring(err), vim.log.levels.ERROR)
+            end)
+        end
     
     -- Add a buffer-local autocommand to prevent closing the window with :q
     vim.api.nvim_create_autocmd("BufWinLeave", {
@@ -415,10 +454,12 @@ function M.prompt()
             sidebar_buf = vim.api.nvim_create_buf(false, true)
             configure_sidebar_buffer(sidebar_buf)
             -- Buffer is modifiable by default when created
-            vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
-            vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false,
-                { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" })
-            vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+            pcall(function()
+                vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
+                vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false,
+                    { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" })
+                vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+            end)
         end
 
         open_sidebar()
@@ -437,22 +478,25 @@ function M.prompt()
             })
             render_sidebar()
 
-            -- Make the AI request
+            -- Make the AI request with proper error handling
             local cancel_request = ai_chat(input, context, function(response)
-                -- The response handling is now done in the ai_chat function
-                -- We just need to make sure the sidebar is updated
-                render_sidebar()
+                -- Safely update the sidebar only if buffer is still valid
+                if sidebar_buf and vim.api.nvim_buf_is_valid(sidebar_buf) then
+                    render_sidebar()
+                end
             end)
 
             -- Add a way to cancel the request if needed
             if sidebar_buf and vim.api.nvim_buf_is_valid(sidebar_buf) then
-                vim.api.nvim_buf_set_var(sidebar_buf, "cancel_current_request", cancel_request)
+                pcall(function()
+                    vim.api.nvim_buf_set_var(sidebar_buf, "cancel_current_request", cancel_request)
+                end)
             end
         end
     end)
 
     if not status then
-        vim.notify("Error opening prompt: " .. tostring(err), vim.log.levels.ERROR)
+        vim.notify("[splice.nvim] Error opening prompt: " .. tostring(err), vim.log.levels.ERROR)
     end
 end
 

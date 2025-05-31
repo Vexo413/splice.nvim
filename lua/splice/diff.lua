@@ -3,62 +3,91 @@ local config
 local http = require('splice.http')
 
 local function show_diff(original, modified, commentary)
-    -- Use floating windows for side-by-side diff
-    local buf_orig = vim.api.nvim_create_buf(false, true)
-    local buf_mod = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(buf_orig, 0, -1, false, original)
-    vim.api.nvim_buf_set_lines(buf_mod, 0, -1, false, modified)
+    -- Use floating windows for side-by-side diff with error handling
+    local ok, err = pcall(function()
+        local buf_orig = vim.api.nvim_create_buf(false, true)
+        local buf_mod = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf_orig, 0, -1, false, original)
+        vim.api.nvim_buf_set_lines(buf_mod, 0, -1, false, modified)
 
-    local width = math.floor(vim.o.columns / 2) - 2
-    local height = math.floor(vim.o.lines / 2)
-    local row = 2
+        local width = math.floor(vim.o.columns / 2) - 2
+        local height = math.floor(vim.o.lines / 2)
+        local row = 2
 
-    local win_orig = vim.api.nvim_open_win(buf_orig, true, {
-        relative = "editor",
-        width = width,
-        height = height,
-        row = row,
-        col = 2,
-        style = "minimal",
-        border = "rounded",
-        title = "Original",
-    })
-    local win_mod = vim.api.nvim_open_win(buf_mod, false, {
-        relative = "editor",
-        width = width,
-        height = height,
-        row = row,
-        col = width + 4,
-        style = "minimal",
-        border = "rounded",
-        title = "Modified",
-    })
-
-    -- Optional: show commentary as virtual text
-    if commentary then
-        vim.api.nvim_buf_set_extmark(buf_mod, vim.api.nvim_create_namespace("splice_diff_comment"), 0, 0, {
-            virt_text = { { commentary, "Comment" } },
-            virt_text_pos = "eol",
+        local win_orig = vim.api.nvim_open_win(buf_orig, true, {
+            relative = "editor",
+            width = width,
+            height = height,
+            row = row,
+            col = 2,
+            style = "minimal",
+            border = "rounded",
+            title = "Original",
         })
+        local win_mod = vim.api.nvim_open_win(buf_mod, false, {
+            relative = "editor",
+            width = width,
+            height = height,
+            row = row,
+            col = width + 4,
+            style = "minimal",
+            border = "rounded",
+            title = "Modified",
+        })
+
+        -- Optional: show commentary as virtual text
+        if commentary then
+            vim.api.nvim_buf_set_extmark(buf_mod, vim.api.nvim_create_namespace("splice_diff_comment"), 0, 0, {
+                virt_text = { { commentary, "Comment" } },
+                virt_text_pos = "eol",
+            })
+        end
+
+        -- Keymaps for accept/reject
+        vim.keymap.set("n", "<leader>da", function()
+            -- Accept: replace buffer with modified
+            local cur_buf = vim.api.nvim_get_current_buf()
+            if vim.api.nvim_buf_is_valid(cur_buf) then
+                vim.api.nvim_buf_set_lines(cur_buf, 0, -1, false, modified)
+            end
+            if vim.api.nvim_win_is_valid(win_orig) then
+                vim.api.nvim_win_close(win_orig, true)
+            end
+            if vim.api.nvim_win_is_valid(win_mod) then
+                vim.api.nvim_win_close(win_mod, true)
+            end
+        end, { buffer = buf_mod, nowait = true })
+
+        vim.keymap.set("n", "<leader>dr", function()
+            -- Reject: close diff windows
+            if vim.api.nvim_win_is_valid(win_orig) then
+                vim.api.nvim_win_close(win_orig, true)
+            end
+            if vim.api.nvim_win_is_valid(win_mod) then
+                vim.api.nvim_win_close(win_mod, true)
+            end
+        end, { buffer = buf_mod, nowait = true })
+    end)
+    
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.diff] Error showing diff: " .. tostring(err), vim.log.levels.ERROR)
+        end)
     end
-
-    -- Keymaps for accept/reject
-    vim.keymap.set("n", "<leader>da", function()
-        -- Accept: replace buffer with modified
-        local cur_buf = vim.api.nvim_get_current_buf()
-        vim.api.nvim_buf_set_lines(cur_buf, 0, -1, false, modified)
-        vim.api.nvim_win_close(win_orig, true)
-        vim.api.nvim_win_close(win_mod, true)
-    end, { buffer = buf_mod, nowait = true })
-
-    vim.keymap.set("n", "<leader>dr", function()
-        -- Reject: close diff windows
-        vim.api.nvim_win_close(win_orig, true)
-        vim.api.nvim_win_close(win_mod, true)
-    end, { buffer = buf_mod, nowait = true })
 end
 
 local function fetch_ai_diff(prompt, context, cb)
+    -- Validate callback is a function
+    if type(cb) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.diff] Error: callback must be a function", vim.log.levels.ERROR)
+        end)
+        return
+    end
+    
+    -- Store callback in a safe upvalue to avoid closure issues
+    local safe_callback = cb
+    
     local orig = context.selection or context.buffer
     
     -- Create a specialized prompt for code modification
@@ -84,9 +113,11 @@ Modified code:
     
     -- Show a loading indicator
     vim.schedule(function()
-        local mod = vim.deepcopy(orig)
-        table.insert(mod, "-- Generating AI modification...")
-        cb(orig, mod, "Generating modification based on: " .. prompt)
+        if type(safe_callback) == "function" then
+            local mod = vim.deepcopy(orig)
+            table.insert(mod, "-- Generating AI modification...")
+            safe_callback(orig, mod, "Generating modification based on: " .. prompt)
+        end
     end)
 
     -- Make the actual API request
@@ -96,12 +127,20 @@ Modified code:
         context = diff_context,
         provider = config.provider,
     }, function(result, err)
+        -- Guard against callback not being a function
+        if type(safe_callback) ~= "function" then
+            vim.schedule(function()
+                vim.notify("[splice.diff] Error: callback is no longer a function", vim.log.levels.ERROR)
+            end)
+            return
+        end
+        
         if err then
             vim.schedule(function()
-                vim.notify("AI diff generation failed: " .. err, vim.log.levels.ERROR)
+                vim.notify("[splice.diff] AI diff generation failed: " .. err, vim.log.levels.ERROR)
                 local mod = vim.deepcopy(orig)
                 table.insert(mod, "-- Error: " .. err)
-                cb(orig, mod, "Error generating diff: " .. err)
+                safe_callback(orig, mod, "Error generating diff: " .. err)
             end)
             return
         end
@@ -158,15 +197,25 @@ Modified code:
 
         -- Return the result through callback (streaming: update window as tokens arrive)
         vim.schedule(function()
-            cb(orig, modified_lines, commentary)
+            if type(safe_callback) == "function" then
+                safe_callback(orig, modified_lines, commentary)
+            end
         end)
     end)
 end
 
 function M.request_diff(prompt, context)
-    fetch_ai_diff(prompt, context, function(orig, mod, commentary)
-        show_diff(orig, mod, commentary)
+    local ok, err = pcall(function()
+        fetch_ai_diff(prompt, context, function(orig, mod, commentary)
+            show_diff(orig, mod, commentary)
+        end)
     end)
+    
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.diff] Error requesting diff: " .. tostring(err), vim.log.levels.ERROR)
+        end)
+    end
 end
 
 function M.setup(cfg)
@@ -176,20 +225,49 @@ function M.setup(cfg)
 end
 
 function M.visual_diff()
-    local bufnr = vim.api.nvim_get_current_buf()
-    local start_row = vim.fn.line("v")
-    local end_row = vim.fn.line(".")
-    if start_row > end_row then start_row, end_row = end_row, start_row end
-    local lines = vim.api.nvim_buf_get_lines(bufnr, start_row - 1, end_row, false)
-    vim.ui.input({ prompt = "AI diff prompt: " }, function(prompt)
-        if not prompt or prompt == "" then return end
-        local context = {
-            buffer = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
-            selection = lines,
-            filetype = vim.bo.filetype,
-        }
-        M.request_diff(prompt, context)
+    local ok, err = pcall(function()
+        local bufnr = vim.api.nvim_get_current_buf()
+        if not vim.api.nvim_buf_is_valid(bufnr) then
+            vim.notify("[splice.diff] Invalid buffer", vim.log.levels.ERROR)
+            return
+        end
+        
+        local start_row = vim.fn.line("v")
+        local end_row = vim.fn.line(".")
+        if start_row > end_row then start_row, end_row = end_row, start_row end
+        
+        -- Safely get selected lines
+        local lines = {}
+        local lines_ok, lines_err = pcall(function()
+            lines = vim.api.nvim_buf_get_lines(bufnr, start_row - 1, end_row, false)
+        end)
+        
+        if not lines_ok or #lines == 0 then
+            vim.notify("[splice.diff] Error getting selected lines: " .. (lines_err or "empty selection"), vim.log.levels.ERROR)
+            return
+        end
+        
+        vim.ui.input({ prompt = "AI diff prompt: " }, function(prompt)
+            if not prompt or prompt == "" then return end
+            
+            local context = {}
+            pcall(function()
+                context = {
+                    buffer = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false),
+                    selection = lines,
+                    filetype = vim.bo.filetype,
+                }
+            end)
+            
+            M.request_diff(prompt, context)
+        end)
     end)
+    
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.diff] Error in visual diff: " .. tostring(err), vim.log.levels.ERROR)
+        end)
+    end
 end
 
 return M

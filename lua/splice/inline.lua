@@ -4,23 +4,51 @@ local config
 local http = require('splice.http')
 
 local function clear_virtual_text(bufnr)
-    vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    -- Only clear if the buffer is valid
+    if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+        vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+    end
 end
 
 local function show_inline_suggestion(bufnr, line, text)
+    if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+        return
+    end
+
     clear_virtual_text(bufnr)
-    vim.api.nvim_buf_set_extmark(bufnr, ns, line, 0, {
-        virt_text = { { text, "Comment" } },
-        virt_text_pos = "eol",
-        hl_mode = "combine",
-    })
+    
+    -- Safely set the extmark
+    local ok, err = pcall(function()
+        vim.api.nvim_buf_set_extmark(bufnr, ns, line, 0, {
+            virt_text = { { text, "Comment" } },
+            virt_text_pos = "eol",
+            hl_mode = "combine",
+        })
+    end)
+    
+    if not ok then
+        vim.schedule(function()
+            vim.notify("[splice.inline] Error showing suggestion: " .. tostring(err), vim.log.levels.ERROR)
+        end)
+    end
 end
 
 local function fetch_ai_suggestion(prompt, context, cb)
+    -- Validate callback is a function
+    if type(cb) ~= "function" then
+        vim.schedule(function()
+            vim.notify("[splice.inline] Error: callback must be a function", vim.log.levels.ERROR)
+        end)
+        return
+    end
+    
+    -- Store callback in a safe upvalue to avoid closure issues
+    local safe_callback = cb
+    
     local status, err = pcall(function()
         -- Add a placeholder suggestion immediately
         vim.schedule(function()
-            cb("Generating suggestion...")
+            safe_callback("Generating suggestion...")
         end)
 
         local last_text = ""
@@ -31,10 +59,18 @@ local function fetch_ai_suggestion(prompt, context, cb)
             context = context,
             provider = config and config.provider,
         }, function(result, err_resp)
+            -- Always check if callback is still a function
+            if type(safe_callback) ~= "function" then
+                vim.schedule(function()
+                    vim.notify("[splice.inline] Error: callback is no longer a function", vim.log.levels.ERROR)
+                end)
+                return
+            end
+            
             if err_resp then
                 vim.schedule(function()
-                    vim.notify("AI suggestion failed: " .. err_resp, vim.log.levels.ERROR)
-                    cb("Error: " .. err_resp)
+                    vim.notify("[splice.inline] AI suggestion failed: " .. err_resp, vim.log.levels.ERROR)
+                    safe_callback("Error: " .. err_resp)
                 end)
                 return
             end
@@ -44,7 +80,9 @@ local function fetch_ai_suggestion(prompt, context, cb)
                 if result.text ~= last_text then
                     last_text = result.text
                     vim.schedule(function()
-                        cb(result.text)
+                        if type(safe_callback) == "function" then
+                            safe_callback(result.text)
+                        end
                     end)
                 end
                 return
@@ -52,30 +90,34 @@ local function fetch_ai_suggestion(prompt, context, cb)
 
             -- Final output
             vim.schedule(function()
-                cb(result.text)
+                if type(safe_callback) == "function" then
+                    safe_callback(result.text)
 
-                -- Save the interaction to history module if available
-                pcall(function()
-                    local history_module = require('splice.history')
-                    if history_module and history_module.add_entry then
-                        history_module.add_entry({
-                            prompt = prompt,
-                            response = result.text,
-                            provider = result.provider,
-                            model = result.model,
-                            timestamp = os.time(),
-                            type = "inline",
-                        })
-                    end
-                end)
+                    -- Save the interaction to history module if available
+                    pcall(function()
+                        local history_module = require('splice.history')
+                        if history_module and history_module.add_entry then
+                            history_module.add_entry({
+                                prompt = prompt,
+                                response = result.text,
+                                provider = result.provider,
+                                model = result.model,
+                                timestamp = os.time(),
+                                type = "inline",
+                            })
+                        end
+                    end)
+                end
             end)
         end)
     end)
 
     if not status then
-        vim.notify("Error fetching AI suggestion: " .. tostring(err), vim.log.levels.ERROR)
+        vim.notify("[splice.inline] Error fetching AI suggestion: " .. tostring(err), vim.log.levels.ERROR)
         vim.schedule(function()
-            cb("Error fetching suggestion. See :messages for details.")
+            if type(safe_callback) == "function" then
+                safe_callback("Error fetching suggestion. See :messages for details.")
+            end
         end)
     end
 end
@@ -83,11 +125,23 @@ end
 local function on_trigger()
     local status, err = pcall(function()
         local bufnr = vim.api.nvim_get_current_buf()
-        local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
-        local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1]
         
-        if not line then
-            vim.notify("No line found at cursor position", vim.log.levels.WARN)
+        -- Verify buffer is valid
+        if not vim.api.nvim_buf_is_valid(bufnr) then
+            vim.notify("[splice.inline] Buffer is not valid", vim.log.levels.WARN)
+            return
+        end
+        
+        local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
+        
+        -- Safely get the current line
+        local line
+        local ok, line_err = pcall(function()
+            line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1]
+        end)
+        
+        if not ok or not line then
+            vim.notify("[splice.inline] No line found at cursor position: " .. (line_err or "unknown error"), vim.log.levels.WARN)
             return
         end
         
@@ -102,33 +156,47 @@ local function on_trigger()
             cursor = { row, 0 },
         }
 
+        -- Create a local copy of row for closures
+        local current_row = row
+        
         fetch_ai_suggestion(prompt, context, function(suggestion)
             if not vim.api.nvim_buf_is_valid(bufnr) then
-                vim.notify("Buffer is no longer valid", vim.log.levels.WARN)
+                vim.notify("[splice.inline] Buffer is no longer valid", vim.log.levels.WARN)
                 return
             end
 
-            show_inline_suggestion(bufnr, row - 1, suggestion)
+            show_inline_suggestion(bufnr, current_row - 1, suggestion)
+            
             -- Keymaps for accept/modify/cancel (set only once per trigger)
             if not M._inline_keys_set then
-                vim.keymap.set("n", "<Tab>", function()
-                    if vim.api.nvim_buf_is_valid(bufnr) then
-                        vim.api.nvim_buf_set_lines(bufnr, row - 1, row, false, { suggestion })
-                        clear_virtual_text(bufnr)
-                    end
-                end, { buffer = bufnr, nowait = true })
-                vim.keymap.set("n", "<Esc>", function()
-                    if vim.api.nvim_buf_is_valid(bufnr) then
-                        clear_virtual_text(bufnr)
-                    end
-                end, { buffer = bufnr, nowait = true })
-                M._inline_keys_set = true
+                -- Safely set keymaps with error handling
+                pcall(function()
+                    -- Store suggestion in an upvalue to avoid closure issues
+                    local safe_suggestion = suggestion
+                    
+                    vim.keymap.set("n", "<Tab>", function()
+                        if vim.api.nvim_buf_is_valid(bufnr) then
+                            pcall(function()
+                                vim.api.nvim_buf_set_lines(bufnr, current_row - 1, current_row, false, { safe_suggestion })
+                                clear_virtual_text(bufnr)
+                            end)
+                        end
+                    end, { buffer = bufnr, nowait = true })
+                    
+                    vim.keymap.set("n", "<Esc>", function()
+                        if vim.api.nvim_buf_is_valid(bufnr) then
+                            clear_virtual_text(bufnr)
+                        end
+                    end, { buffer = bufnr, nowait = true })
+                    
+                    M._inline_keys_set = true
+                end)
             end
         end)
     end)
     
     if not status then
-        vim.notify("Error in inline suggestion: " .. tostring(err), vim.log.levels.ERROR)
+        vim.notify("[splice.inline] Error in inline suggestion: " .. tostring(err), vim.log.levels.ERROR)
     end
 end
 
@@ -145,18 +213,30 @@ function M.setup(cfg)
         vim.api.nvim_create_autocmd("TextChangedI", {
             pattern = "*",
             callback = function()
-                local bufnr = vim.api.nvim_get_current_buf()
-                local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
-                local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1]
-                if line and line:find(config.inline_trigger, 1, true) then
-                    on_trigger()
-                end
+                -- Safely get current buffer and line
+                local ok, result = pcall(function()
+                    local bufnr = vim.api.nvim_get_current_buf()
+                    if not vim.api.nvim_buf_is_valid(bufnr) then
+                        return false
+                    end
+                    
+                    local row, _ = unpack(vim.api.nvim_win_get_cursor(0))
+                    local line = vim.api.nvim_buf_get_lines(bufnr, row - 1, row, false)[1]
+                    
+                    if line and line:find(config.inline_trigger, 1, true) then
+                        on_trigger()
+                    end
+                    
+                    return true
+                end)
+                
+                -- No need to handle errors here - if there's a problem, just don't trigger
             end,
         })
     end)
     
     if not status then
-        vim.notify("Error setting up inline autocmd: " .. tostring(err), vim.log.levels.ERROR)
+        vim.notify("[splice.inline] Error setting up inline autocmd: " .. tostring(err), vim.log.levels.ERROR)
     end
     
     -- Set up keymap for manual triggering
@@ -172,7 +252,7 @@ function M.trigger()
     end)
     
     if not status then
-        vim.notify("Error triggering inline suggestion: " .. tostring(err), vim.log.levels.ERROR)
+        vim.notify("[splice.inline] Error triggering inline suggestion: " .. tostring(err), vim.log.levels.ERROR)
     end
 end
 
