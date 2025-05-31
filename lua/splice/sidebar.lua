@@ -525,7 +525,7 @@ local function clear_prompt_buffer()
         })
         -- Set cursor at the end of the buffer
         if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
-            vim.api.nvim_win_set_cursor(prompt_win, { 4, 0 })
+            vim.api.nvim_win_set_cursor(prompt_win, { 0, 0 })
         end
     end
 end
