@@ -21,38 +21,93 @@ local function gather_context()
 end
 
 local function ai_chat(prompt, context, cb)
+    -- Generate a unique ID for this chat entry to track it
+    local chat_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
+    
     -- Status message in sidebar while waiting for response
     vim.schedule(function()
         table.insert(chat_history, { 
+            id = chat_id,
             prompt = prompt, 
             response = "Thinking..." 
         })
         render_sidebar()
     end)
     
+    -- Find our entry in the chat history
+    local function find_chat_entry()
+        for i, entry in ipairs(chat_history) do
+            if entry.id == chat_id then
+                return i
+            end
+        end
+        return nil
+    end
+    
     -- Call the actual AI provider through our HTTP client
-    http.ai_request({
+    local request = http.ai_request({
         config = config,
         prompt = prompt,
         context = context,
         provider = config.provider,
     }, function(result, err)
-        -- Remove the "Thinking..." entry
-        table.remove(chat_history)
-        
         if err then
             -- Handle error
             vim.schedule(function()
+                local error_message = "Error: " .. (err or "Unknown error")
                 vim.notify("AI request failed: " .. err, vim.log.levels.ERROR)
-                cb("Error: " .. err)
+                
+                -- Find and update our chat entry instead of removing it
+                local entry_index = find_chat_entry()
+                if entry_index then
+                    chat_history[entry_index].response = error_message
+                    render_sidebar()
+                end
+                
+                -- Call the callback with the error message
+                if type(cb) == "function" then
+                    cb(error_message)
+                end
+            end)
+            return
+        end
+        
+        -- Ensure we have a valid result with text
+        if not result or not result.text then
+            vim.schedule(function()
+                local error_message = "Error: Empty response from AI provider"
+                vim.notify(error_message, vim.log.levels.ERROR)
+                
+                -- Find and update our chat entry
+                local entry_index = find_chat_entry()
+                if entry_index then
+                    chat_history[entry_index].response = error_message
+                    render_sidebar()
+                end
+                
+                -- Call the callback with the error message
+                if type(cb) == "function" then
+                    cb(error_message)
+                end
             end)
             return
         end
         
         -- Process successful response
         vim.schedule(function()
-            -- Add to history and render
-            cb(result.text)
+            -- Find and update our chat entry
+            local entry_index = find_chat_entry()
+            if entry_index then
+                chat_history[entry_index].response = result.text
+                chat_history[entry_index].provider = result.provider
+                chat_history[entry_index].model = result.model
+                render_sidebar()
+            end
+            
+            -- Call the callback with the result text
+            if type(cb) == "function" then
+                cb(result.text)
+            end
             
             -- Save the interaction to history module if available
             pcall(function()
@@ -69,6 +124,13 @@ local function ai_chat(prompt, context, cb)
             end)
         end)
     end)
+    
+    -- Return a cancel function
+    return function()
+        if request and request.cancel then
+            request.cancel()
+        end
+    end
 end
 
 local function render_sidebar()
@@ -81,8 +143,26 @@ local function render_sidebar()
         lines = {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"}
     else
         for _, entry in ipairs(chat_history) do
-            table.insert(lines, "You: " .. entry.prompt)
-            table.insert(lines, "AI: " .. entry.response)
+            -- Format the prompt, handling nil values
+            local prompt_text = entry.prompt
+            if not prompt_text or prompt_text == "" then
+                prompt_text = "[Empty prompt]"
+            end
+            table.insert(lines, "You: " .. prompt_text)
+            
+            -- Format the response, handling nil values
+            local response_text = entry.response
+            if not response_text or response_text == "" then
+                response_text = "Waiting for response..."
+            end
+            
+            -- Add model info if available
+            if entry.provider and entry.model then
+                table.insert(lines, "AI (" .. entry.provider .. "/" .. entry.model .. "): " .. response_text)
+            else
+                table.insert(lines, "AI: " .. response_text)
+            end
+            
             table.insert(lines, "")
         end
     end
@@ -146,20 +226,20 @@ local function prompt_input()
         -- Add to chat history immediately to show user input
         table.insert(chat_history, { 
             prompt = input, 
-            response = nil 
+            response = "Waiting for response..." 
         })
         render_sidebar()
         
         -- Make the AI request
-        ai_chat(input, context, function(response)
-            -- Update the last entry with the response
-            if chat_history[#chat_history] and chat_history[#chat_history].prompt == input then
-                chat_history[#chat_history].response = response
-            else
-                table.insert(chat_history, { prompt = input, response = response })
-            end
+        local cancel_request = ai_chat(input, context, function(response)
+            -- The response handling is now done in the ai_chat function
+            -- We just need to make sure the sidebar is updated
             render_sidebar()
         end)
+        
+        -- Add a way to cancel the request if needed
+        -- (This could be hooked up to a keybinding or command)
+        vim.api.nvim_buf_set_var(sidebar_buf, "cancel_current_request", cancel_request)
     end)
 end
 

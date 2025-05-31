@@ -16,6 +16,7 @@ set cpo&vim
 command! -nargs=0 SpliceToggle lua require('splice.sidebar').toggle()
 command! -nargs=0 SplicePrompt lua require('splice.sidebar').prompt()
 command! -nargs=0 SpliceHistory lua require('splice.history').show_history()
+command! -nargs=0 SpliceReload lua for k in pairs(package.loaded) do if k:match('^splice') then package.loaded[k] = nil end end; require('splice').setup()
 
 " Make sure the plugin can be safely loaded
 if !has('nvim-0.5.0')
