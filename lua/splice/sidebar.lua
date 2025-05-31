@@ -341,14 +341,15 @@ render_history = function()
                     if line:match("<think>") then
                         think_start = i
                     elseif line:match("</think>") and think_start then
-                        -- Create a fold from think_start to current line
+                        -- Create a fold from think_start to current line (both inclusive)
+                        -- Add 1 to line numbers because Vim folding is 1-indexed
                         vim.cmd(string.format("silent! %d,%dfold", think_start, i))
                         think_start = nil
                     end
                 end
                 
-                -- Close all folds
-                vim.cmd("silent! %foldclose!")
+                -- Close all think region folds
+                vim.cmd("silent! %foldclose")
             end)
         end)
 
@@ -554,8 +555,9 @@ function configure_history_buffer(buf)
                 syntax match spliceHorizontalRule /^\s*\(_\s*\)\{3,\}$/
 
                 " Think tags with automatic folding
-                syntax region spliceThinkRegion start=/^\s*<think>/ end=/^\s*<\/think>/ fold contains=spliceThinkTag
-                syntax match spliceThinkTag /<\/?think>/ contained
+                syntax match spliceThinkStart /<think>/ 
+                syntax match spliceThinkEnd /<\/think>/
+                syntax region spliceThinkRegion matchgroup=spliceThinkTag start=/<think>/ end=/<\/think>/ contains=ALL
 
                 " Define highlighting for user questions and AI responses
                 syntax match spliceUserQuestion /^You:.*$/
@@ -584,6 +586,8 @@ function configure_history_buffer(buf)
                 highlight default link spliceHorizontalRule Comment
                 highlight default link spliceThinkRegion Comment
                 highlight default link spliceThinkTag Special
+                highlight default link spliceThinkStart Special
+                highlight default link spliceThinkEnd Special
                 highlight default link spliceUserQuestion Statement
                 highlight default link spliceAIResponse Normal
                 highlight default link spliceAIResponseCont Normal
@@ -597,6 +601,10 @@ function configure_history_buffer(buf)
         vim.api.nvim_buf_set_option(buf, "foldmethod", "manual")
         vim.api.nvim_buf_set_option(buf, "foldlevel", 0)
         vim.api.nvim_buf_set_option(buf, "foldenable", true)
+        
+        -- Add special keymaps for folding
+        vim.api.nvim_buf_set_keymap(buf, "n", "za", ":call luaeval('require(\"splice.sidebar\").toggle_fold_under_cursor()')<CR>", 
+            { noremap = true, silent = true })
 
         -- Add local keymaps
         vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>lua require('splice.sidebar').toggle()<CR>",
@@ -1101,6 +1109,64 @@ end
 -- Get the sidebar buffer - useful for external modules
 function M.get_history_buf()
     return history_buf
+end
+
+-- Function to toggle fold under cursor
+function M.toggle_fold_under_cursor()
+    local line = vim.fn.getline(".")
+    
+    -- Check if cursor is on a think tag line
+    if line:match("<think>") or line:match("</think>") then
+        -- Find the fold that contains this line
+        local current_line = vim.fn.line(".")
+        
+        -- Get all lines in the buffer
+        local buf_lines = vim.api.nvim_buf_get_lines(history_buf, 0, -1, false)
+        
+        -- Find the think region
+        local think_start, think_end
+        
+        -- If we're on the opening tag, search forward for closing tag
+        if line:match("<think>") then
+            think_start = current_line
+            
+            -- Search forward for the matching </think>
+            for i = current_line, #buf_lines do
+                if buf_lines[i]:match("</think>") then
+                    think_end = i + 1 -- +1 because buf_lines is 0-indexed but Vim is 1-indexed
+                    break
+                end
+            end
+        -- If we're on the closing tag, search backward for opening tag
+        elseif line:match("</think>") then
+            think_end = current_line
+            
+            -- Search backward for the matching <think>
+            for i = current_line, 1, -1 do
+                if buf_lines[i - 1]:match("<think>") then -- -1 for 0-indexing
+                    think_start = i
+                    break
+                end
+            end
+        end
+        
+        -- If we found both tags, toggle the fold
+        if think_start and think_end then
+            -- Check if region is folded
+            local folded = vim.fn.foldclosed(think_start) ~= -1
+            
+            -- Clear existing folds in this region
+            vim.cmd(string.format("silent! %d,%dfoldopen", think_start, think_end))
+            
+            -- If it wasn't folded before, create a new fold
+            if not folded then
+                vim.cmd(string.format("silent! %d,%dfold", think_start, think_end))
+            end
+        end
+    else
+        -- Normal fold toggle behavior for non-think-tag lines
+        vim.cmd("normal! za")
+    end
 end
 
 return M
