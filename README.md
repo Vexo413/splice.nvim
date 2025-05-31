@@ -11,6 +11,7 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 - 📚 History tracking of AI interactions
 - 🔄 Session persistence
 - 🎨 Syntax highlighting for code blocks in sidebar
+- ⌨️ Integrated prompt editor in sidebar for better workflow
 
 ## Screenshots
 
@@ -72,14 +73,14 @@ Here's a full configuration example with all available options:
 require('splice').setup({
   -- AI provider options
   provider = "ollama", -- "ollama", "openai", "anthropic", etc.
-  
+
   -- Ollama configuration
   ollama = {
     endpoint = "http://localhost:11434",
     models = { "llama2", "codellama", "mistral" },
     default_model = "codellama",
   },
-  
+
   -- OpenAI configuration
   openai = {
     api_key = "YOUR_API_KEY", -- Set this via environment variable in production
@@ -87,7 +88,7 @@ require('splice').setup({
     models = { "gpt-4", "gpt-3.5-turbo" },
     default_model = "gpt-4",
   },
-  
+
   -- Anthropic configuration
   anthropic = {
     api_key = "YOUR_API_KEY", -- Set this via environment variable in production
@@ -95,7 +96,7 @@ require('splice').setup({
     models = { "claude-3-opus-20240229", "claude-3-sonnet-20240229" },
     default_model = "claude-3-opus-20240229",
   },
-  
+
   -- UI and workflow options
   inline_trigger = "///", -- Trigger for inline completions
   sidebar_width = 40,     -- Width of the AI chat sidebar
@@ -103,7 +104,7 @@ require('splice').setup({
   focus_on_open = false,  -- Whether to focus the sidebar when opening it
   restore_on_startup = false, -- Whether to restore the sidebar on startup if it was open before
   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
-  
+
   -- File paths for storing data
   history_file = vim.fn.stdpath("data") .. "/splice_history.json",
   session_file = vim.fn.stdpath("data") .. "/splice_session.json",
@@ -116,6 +117,7 @@ require('splice').setup({
 
 - `:SpliceToggle` - Toggle the AI sidebar
 - `:SplicePrompt` - Open the AI prompt input
+- `:SplicePromptFocus` - Open sidebar and focus the integrated prompt editor
 - `:SpliceHistory` - Show history of AI interactions
 - `:SpliceReload` - Reload the plugin (helpful for troubleshooting)
 
@@ -125,6 +127,8 @@ Default keybindings:
 
 - `<leader>as` - Toggle the AI sidebar
 - `<leader>ap` - Open the AI prompt input
+- `<leader>aa` - Open sidebar and focus the integrated prompt editor
+- `<leader>af` - Toggle focus between sidebar and prompt editor
 - `<leader>ai` - Trigger inline AI suggestion
 - `<leader>ah` - Show history of AI interactions
 - `<leader>ad` - (Visual mode) Generate a diff for selected code
@@ -132,6 +136,11 @@ Default keybindings:
 In the sidebar:
 - `q` - Close the sidebar
 - `p` - Open the AI prompt input
+- `<leader>af` - Switch focus to the prompt editor
+
+In the prompt editor:
+- Write your prompt and save (`:w`) to submit
+- `<leader>af` - Switch focus to the response area
 
 In diff view:
 - `<leader>da` - Accept the suggested changes
