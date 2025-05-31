@@ -198,6 +198,24 @@ local function apply_code_block_highlighting(buf)
         end
     end
 end
+local function fold_think_blocks(bufnr)
+    bufnr = bufnr or 0
+    local start = nil
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+
+    for i, line in ipairs(lines) do
+        if line:match("<think>") then
+            start = i
+        elseif line:match("</think>") and start then
+            -- Fold from start to current line
+            vim.api.nvim_buf_call(bufnr, function()
+                vim.cmd(string.format("%d,%dfold", start, i))
+            end)
+            start = nil
+        end
+    end
+end
+
 
 -- Define the render_history function that updates the history content
 render_history = function()
@@ -328,30 +346,7 @@ render_history = function()
         end)
 
         -- Automatically fold think regions
-        pcall(function()
-            vim.api.nvim_buf_call(history_buf, function()
-                -- Clear existing folds first
-                vim.cmd("silent! normal! zE")
-                
-                -- Find and manually create folds for think regions
-                local buf_lines = vim.api.nvim_buf_get_lines(history_buf, 0, -1, false)
-                local think_start = nil
-                
-                for i, line in ipairs(buf_lines) do
-                    if line:match("<think>") then
-                        think_start = i
-                    elseif line:match("</think>") and think_start then
-                        -- Create a fold from think_start to current line (both inclusive)
-                        -- Add 1 to line numbers because Vim folding is 1-indexed
-                        vim.cmd(string.format("silent! %d,%dfold", think_start, i))
-                        think_start = nil
-                    end
-                end
-                
-                -- Close all think region folds
-                vim.cmd("silent! %foldclose")
-            end)
-        end)
+        fold_think_blocks(history_buf)
 
         -- Set back to non-modifiable to protect content
         vim.api.nvim_buf_set_option(history_buf, "modifiable", false)
@@ -555,7 +550,7 @@ function configure_history_buffer(buf)
                 syntax match spliceHorizontalRule /^\s*\(_\s*\)\{3,\}$/
 
                 " Think tags with automatic folding
-                syntax match spliceThinkStart /<think>/ 
+                syntax match spliceThinkStart /<think>/
                 syntax match spliceThinkEnd /<\/think>/
                 syntax region spliceThinkRegion matchgroup=spliceThinkTag start=/<think>/ end=/<\/think>/ contains=ALL
 
@@ -601,9 +596,10 @@ function configure_history_buffer(buf)
         vim.api.nvim_buf_set_option(buf, "foldmethod", "manual")
         vim.api.nvim_buf_set_option(buf, "foldlevel", 0)
         vim.api.nvim_buf_set_option(buf, "foldenable", true)
-        
+
         -- Add special keymaps for folding
-        vim.api.nvim_buf_set_keymap(buf, "n", "za", ":call luaeval('require(\"splice.sidebar\").toggle_fold_under_cursor()')<CR>", 
+        vim.api.nvim_buf_set_keymap(buf, "n", "za",
+            ":call luaeval('require(\"splice.sidebar\").toggle_fold_under_cursor()')<CR>",
             { noremap = true, silent = true })
 
         -- Add local keymaps
@@ -1114,22 +1110,22 @@ end
 -- Function to toggle fold under cursor
 function M.toggle_fold_under_cursor()
     local line = vim.fn.getline(".")
-    
+
     -- Check if cursor is on a think tag line
     if line:match("<think>") or line:match("</think>") then
         -- Find the fold that contains this line
         local current_line = vim.fn.line(".")
-        
+
         -- Get all lines in the buffer
         local buf_lines = vim.api.nvim_buf_get_lines(history_buf, 0, -1, false)
-        
+
         -- Find the think region
         local think_start, think_end
-        
+
         -- If we're on the opening tag, search forward for closing tag
         if line:match("<think>") then
             think_start = current_line
-            
+
             -- Search forward for the matching </think>
             for i = current_line, #buf_lines do
                 if buf_lines[i]:match("</think>") then
@@ -1137,10 +1133,10 @@ function M.toggle_fold_under_cursor()
                     break
                 end
             end
-        -- If we're on the closing tag, search backward for opening tag
+            -- If we're on the closing tag, search backward for opening tag
         elseif line:match("</think>") then
             think_end = current_line
-            
+
             -- Search backward for the matching <think>
             for i = current_line, 1, -1 do
                 if buf_lines[i - 1]:match("<think>") then -- -1 for 0-indexing
@@ -1149,15 +1145,15 @@ function M.toggle_fold_under_cursor()
                 end
             end
         end
-        
+
         -- If we found both tags, toggle the fold
         if think_start and think_end then
             -- Check if region is folded
             local folded = vim.fn.foldclosed(think_start) ~= -1
-            
+
             -- Clear existing folds in this region
             vim.cmd(string.format("silent! %d,%dfoldopen", think_start, think_end))
-            
+
             -- If it wasn't folded before, create a new fold
             if not folded then
                 vim.cmd(string.format("silent! %d,%dfold", think_start, think_end))
