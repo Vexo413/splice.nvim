@@ -616,7 +616,7 @@ setup_prompt_buffer = function()
     vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<C-s>",
         "<cmd>lua require('splice.sidebar').submit_current_prompt()<CR>", keymap_opts)
     vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<C-s>",
-        function() print("working") end, keymap_opts)
+        "<Esc><cmd>lua require('splice.sidebar').submit_current_prompt()<CR>", keymap_opts)
     -- Ctrl+L to clear prompt in both normal and insert modes
     vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<C-l>", "<cmd>lua require('splice.sidebar').clear_current_prompt()<CR>",
         keymap_opts)
@@ -969,6 +969,7 @@ end
 
 -- Submit the current prompt (exposed for keymap)
 function M.submit_current_prompt()
+    print("hello?")
     local status, err = pcall(function()
         if is_prompt_valid() then
             submit_prompt()
