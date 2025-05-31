@@ -1,5 +1,5 @@
 " splice.vim - AI powered text transformations and coding assistant
-" Maintainer: Plugin Author
+" Maintainer: Vexo413
 " Version: 0.1.0
 
 " Prevent loading this plugin multiple times
