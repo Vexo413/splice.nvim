@@ -108,5 +108,5 @@ require('splice').setup({
 -- 3. If experiencing issues, try :SpliceReload to reload the plugin
 -- 4. For more detailed logging, run :SpliceDebugEnable
 -- 5. To check if Ollama is accessible, run :SpliceCheckOllama
--- The sidebar is a single vertical split with integrated prompt area
+-- 6. The sidebar is now a proper Neovim split window (not a floating window)
 --    Use :SpliceToggle to show/hide it

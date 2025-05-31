@@ -461,46 +461,46 @@ end
 
 -- Add buffer configuration for proper sidebar
 local function configure_sidebar_buffer(buf)
-    -- Buffer-local options for sidebar
-    local ok, err = pcall(function()
-        vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
-        vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
-        vim.api.nvim_buf_set_option(buf, "swapfile", false)
-        vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
-        vim.api.nvim_buf_set_option(buf, "modifiable", false)
+        -- Buffer-local options for sidebar
+        local ok, err = pcall(function()
+            vim.api.nvim_buf_set_option(buf, "buftype", "nofile")
+            vim.api.nvim_buf_set_option(buf, "bufhidden", "hide")
+            vim.api.nvim_buf_set_option(buf, "swapfile", false)
+            vim.api.nvim_buf_set_option(buf, "filetype", "markdown")
+            vim.api.nvim_buf_set_option(buf, "modifiable", false)
 
-        -- Enable syntax highlighting if configured
-        if config and config.highlight_code_blocks then
-            vim.api.nvim_buf_call(buf, function()
-                vim.cmd("syntax on")
+            -- Enable syntax highlighting if configured
+            if config and config.highlight_code_blocks then
+                vim.api.nvim_buf_call(buf, function()
+                    vim.cmd("syntax on")
 
-                -- Define custom syntax for code blocks
-                vim.cmd([[
+                    -- Define custom syntax for code blocks
+                    vim.cmd([[
                         syntax region spliceCodeBlock start=/^\s*```/ end=/^\s*```/ contains=spliceCodeLang
                         syntax match spliceCodeLang /```\w\+/ contained
                         highlight link spliceCodeBlock Comment
                         highlight link spliceCodeLang Keyword
                     ]])
-            end)
-        end
+                end)
+            end
 
-        -- Set buffer name
-        vim.api.nvim_buf_set_name(buf, "SpliceAI")
+            -- Set buffer name
+            vim.api.nvim_buf_set_name(buf, "SpliceAI")
 
-        -- Add local keymaps
-        -- Add buffer-local keymaps with descriptions
-        vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>lua require('splice.sidebar').toggle()<CR>",
-            { noremap = true, silent = true, desc = "Close AI sidebar" })
-        vim.api.nvim_buf_set_keymap(buf, "n", "p", "<cmd>lua require('splice.sidebar').prompt()<CR>",
-            { noremap = true, silent = true, desc = "Open popup AI prompt" })
-        vim.api.nvim_buf_set_keymap(buf, "n", "<leader>af", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
-            { noremap = true, silent = true, desc = "Focus prompt editor" })
-        -- Add more convenient mappings
-        vim.api.nvim_buf_set_keymap(buf, "n", "<CR>", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
-            { noremap = true, silent = true, desc = "Focus prompt editor" })
-        vim.api.nvim_buf_set_keymap(buf, "n", "i", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
-            { noremap = true, silent = true, desc = "Focus prompt editor" })
-    end)
+            -- Add local keymaps
+            -- Add buffer-local keymaps with descriptions
+            vim.api.nvim_buf_set_keymap(buf, "n", "q", "<cmd>lua require('splice.sidebar').toggle()<CR>",
+                { noremap = true, silent = true, desc = "Close AI sidebar" })
+            vim.api.nvim_buf_set_keymap(buf, "n", "p", "<cmd>lua require('splice.sidebar').prompt()<CR>",
+                { noremap = true, silent = true, desc = "Open popup AI prompt" })
+            vim.api.nvim_buf_set_keymap(buf, "n", "<leader>af", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
+                { noremap = true, silent = true, desc = "Focus prompt editor" })
+            -- Add more convenient mappings
+            vim.api.nvim_buf_set_keymap(buf, "n", "<CR>", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
+                { noremap = true, silent = true, desc = "Focus prompt editor" })
+            vim.api.nvim_buf_set_keymap(buf, "n", "i", "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
+                { noremap = true, silent = true, desc = "Focus prompt editor" })
+        end)
 
     if not ok then
         vim.schedule(function()
@@ -547,15 +547,15 @@ setup_prompt_buffer = function()
     vim.api.nvim_buf_set_option(prompt_buf, "filetype", "markdown")
 
     -- Add key mapping for toggle focus
-    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<leader>af",
+    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<leader>af", 
         "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
         { noremap = true, silent = true, desc = "Toggle focus to response area" })
     -- Also add insert mode mapping for convenience
-    vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<C-f>",
+    vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<C-f>", 
         "<Esc><cmd>lua require('splice.sidebar').toggle_focus()<CR>",
         { noremap = true, silent = true, desc = "Toggle focus to response area" })
     -- Escape in normal mode should also focus the sidebar
-    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<Esc>",
+    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<Esc>", 
         "<cmd>lua require('splice.sidebar').toggle_focus()<CR>",
         { noremap = true, silent = true, desc = "Focus response area" })
 
@@ -564,9 +564,8 @@ setup_prompt_buffer = function()
 
     -- Initial content with instructions
     vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-        "-- Type your prompt here and press Shift+Enter to submit",
+        "-- Type your prompt here and press Ctrl-S to submit",
         "-- Press <leader>af to switch focus to the response area",
-        "-- You can also use Ctrl-S to submit",
         ""
     })
 
@@ -575,23 +574,6 @@ setup_prompt_buffer = function()
         "<Esc><cmd>lua require('splice.sidebar').submit_prompt()<CR>",
         { noremap = true, silent = true, desc = "Submit AI prompt" })
     vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<C-s>",
-        "<cmd>lua require('splice.sidebar').submit_prompt()<CR>",
-        { noremap = true, silent = true, desc = "Submit AI prompt" })
-
-    -- Add Shift+Enter mapping for submitting in both insert and normal mode
-    -- We map multiple key combinations that terminals might send for Shift+Enter
-    vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<S-CR>",
-        "<Esc><cmd>lua require('splice.sidebar').submit_prompt()<CR>",
-        { noremap = true, silent = true, desc = "Submit AI prompt" })
-    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<S-CR>",
-        "<cmd>lua require('splice.sidebar').submit_prompt()<CR>",
-        { noremap = true, silent = true, desc = "Submit AI prompt" })
-
-    -- Additional mappings for terminal compatibility
-    vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<S-Enter>",
-        "<Esc><cmd>lua require('splice.sidebar').submit_prompt()<CR>",
-        { noremap = true, silent = true, desc = "Submit AI prompt" })
-    vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<S-Enter>",
         "<cmd>lua require('splice.sidebar').submit_prompt()<CR>",
         { noremap = true, silent = true, desc = "Submit AI prompt" })
     -- Also map Enter in normal mode for convenience
@@ -613,78 +595,28 @@ setup_prompt_buffer = function()
 end
 
 -- Focus the prompt window/buffer
--- Function to focus the prompt window/buffer
 focus_prompt = function()
     if not is_prompt_valid() then
         setup_prompt_buffer()
     end
 
-    local status, err = pcall(function()
-        if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
-            -- Make sure prompt window is visible and has correct properties
-
-            -- Set the right highlighting for the focused state
-            vim.api.nvim_win_set_option(prompt_win, "winhighlight", "Normal:PmenuSel,EndOfBuffer:PmenuSel")
-
-            -- Focus the window
-            vim.api.nvim_set_current_win(prompt_win)
-
-            -- Move cursor to the end of the buffer
-            local line_count = vim.api.nvim_buf_line_count(prompt_buf)
-            vim.api.nvim_win_set_cursor(prompt_win, { line_count, 0 })
-
-            -- Activate insert mode to make it ready for typing
-            vim.cmd("startinsert!")
-        else
-            -- If prompt window doesn't exist but sidebar is open, try to reopen both
-            if is_sidebar_visible() then
-                -- Instead of closing and reopening, just recreate the floating window
-                if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
-                    -- Force a redraw of the sidebar layout
-                    local current_win = vim.api.nvim_get_current_win()
-                    vim.api.nvim_set_current_win(sidebar_win)
-
-                    -- Close existing prompt window if any
-                    if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
-                        vim.api.nvim_win_close(prompt_win, false)
-                        prompt_win = nil
-                    end
-
-                    -- Reopen sidebar which will recreate the prompt window
-                    close_sidebar()
-                    open_sidebar()
-
-                    -- Focus the prompt
-                    vim.defer_fn(function()
-                        if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
-                            vim.api.nvim_set_current_win(prompt_win)
-                            vim.cmd("startinsert!")
-                        end
-                    end, 10) -- Small delay to ensure window is ready
-                end
+    if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
+        vim.api.nvim_set_current_win(prompt_win)
+        -- Move cursor to the end of the buffer
+        local line_count = vim.api.nvim_buf_line_count(prompt_buf)
+        vim.api.nvim_win_set_cursor(prompt_win, {line_count, 0})
+        -- Activate insert mode to make it ready for typing
+        vim.cmd("startinsert!")
+    else
+        -- If prompt window doesn't exist but sidebar is open, try to reopen both
+        if is_sidebar_visible() then
+            close_sidebar()
+            open_sidebar()
+            if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
+                vim.api.nvim_set_current_win(prompt_win)
+                vim.cmd("startinsert!")
             end
         end
-    end)
-
-    if not status then
-        vim.schedule(function()
-            vim.notify("[splice.nvim] Error focusing prompt: " .. tostring(err), vim.log.levels.WARN)
-            -- Try one more time with a delay
-            vim.defer_fn(function()
-                -- Try to create a simple floating window if all else fails
-                if not (prompt_win and vim.api.nvim_win_is_valid(prompt_win)) and prompt_buf and vim.api.nvim_buf_is_valid(prompt_buf) then
-                    pcall(function()
-                        -- Create a simple split as fallback
-                        vim.cmd("botright split")
-                        prompt_win = vim.api.nvim_get_current_win()
-                        vim.api.nvim_win_set_buf(prompt_win, prompt_buf)
-                        vim.api.nvim_win_set_height(prompt_win, 5)
-                        vim.api.nvim_win_set_option(prompt_win, "winhighlight", "Normal:PmenuSel,EndOfBuffer:PmenuSel")
-                        vim.cmd("startinsert!")
-                    end)
-                end
-            end, 20)
-        end)
     end
 end
 
@@ -752,7 +684,7 @@ open_sidebar = function()
         vim.api.nvim_win_set_option(sidebar_win, "signcolumn", "no")
         vim.api.nvim_win_set_option(sidebar_win, "foldcolumn", "0")
         vim.api.nvim_win_set_option(sidebar_win, "winfixwidth", true)
-
+    
         -- Set scrolloff to keep context visible
         vim.api.nvim_win_set_option(sidebar_win, "scrolloff", 3)
 
@@ -773,30 +705,21 @@ open_sidebar = function()
         end)
     end
 
-    -- Create a single sidebar with responses at the top and prompt at the bottom
-    -- Focus the sidebar window
-    vim.api.nvim_set_current_win(sidebar_win)
-
-    -- First render the responses in the sidebar
-    render_sidebar()
-
-    -- Create the split window layout with pcall for better error handling
-    local ok, err = pcall(function()
-        -- First render the response part in the sidebar
-        render_sidebar()
-
-        -- Calculate the prompt area height (bottom 25% of sidebar)
-        local total_height = vim.api.nvim_win_get_height(sidebar_win)
-        local prompt_height = math.max(5, math.floor(total_height * 0.25))
-        local response_height = total_height - prompt_height - 1
-
+    -- Create a horizontal split at the bottom for the prompt area (roughly 1/3 of the sidebar height)
         -- First, focus the sidebar window
         vim.api.nvim_set_current_win(sidebar_win)
 
-        -- Resize sidebar to make room for prompt below it
-        vim.api.nvim_win_set_height(sidebar_win, response_height)
+        -- Get total height available for sidebar
+        local total_height = vim.api.nvim_win_get_height(sidebar_win)
 
-        -- Create a horizontal split at the bottom for the prompt area
+        -- Calculate desired heights (1/3 for prompt, 2/3 for history)
+        local prompt_height = math.max(5, math.floor(total_height / 3))
+        local history_height = total_height - prompt_height
+
+        -- Resize sidebar to make room for prompt below it
+        vim.api.nvim_win_set_height(sidebar_win, history_height)
+
+        -- Create the split at the bottom
         vim.cmd("botright split")
 
         -- This is now the prompt window
@@ -810,31 +733,13 @@ open_sidebar = function()
 
         -- Add visual styling to distinguish the prompt area
         vim.api.nvim_win_set_option(prompt_win, "winhighlight", "Normal:PmenuSel,EndOfBuffer:PmenuSel")
+        vim.api.nvim_win_set_option(prompt_win, "winbar", "AI Prompt")
 
-        -- Add window title if supported
-        pcall(function()
-            vim.api.nvim_win_set_option(prompt_win, "winbar", "AI Prompt (Shift+Enter or Ctrl+S to submit)")
-        end)
-
-        -- Add a visual separator line
+        -- Add a visual separator line if possible
         pcall(function()
             vim.api.nvim_win_set_option(prompt_win, "statusline", string.rep("─", 120))
+            vim.api.nvim_win_set_option(prompt_win, "laststatus", 2)
         end)
-    end)
-
-    if not ok then
-        vim.schedule(function()
-            vim.notify("[splice.nvim] Error creating prompt window: " .. tostring(err), vim.log.levels.WARN)
-            -- Create a simpler split window as fallback
-            pcall(function()
-                -- Create a new horizontal split at the bottom of the screen
-                vim.cmd("botright 5split")
-                prompt_win = vim.api.nvim_get_current_win()
-                vim.api.nvim_win_set_buf(prompt_win, prompt_buf)
-                vim.api.nvim_win_set_option(prompt_win, "winhighlight", "Normal:PmenuSel,EndOfBuffer:PmenuSel")
-            end)
-        end)
-    end
 
     -- Configure prompt window with better styling
     pcall(function()
@@ -845,57 +750,30 @@ open_sidebar = function()
         vim.api.nvim_win_set_option(prompt_win, "signcolumn", "no")
         vim.api.nvim_win_set_option(prompt_win, "foldcolumn", "0")
         vim.api.nvim_win_set_option(prompt_win, "cursorline", true)
-
+    
         -- Visual indication that this is an input area
         vim.api.nvim_win_set_option(prompt_win, "winhighlight", "Normal:PmenuSel,EndOfBuffer:PmenuSel,CursorLine:Visual")
+    
+        -- Add window title if supported
+        pcall(function()
+            vim.api.nvim_win_set_option(prompt_win, "winbar", "AI Prompt (Ctrl-S to submit)")
+        end)
     end)
 
     -- Add buffer-local autocommands
-    pcall(function()
-        vim.api.nvim_create_autocmd("BufWinLeave", {
-            buffer = sidebar_buf,
-            callback = function()
-                sidebar_win = nil
-            end
-        })
-
-        vim.api.nvim_create_autocmd("BufWinLeave", {
-            buffer = prompt_buf,
-            callback = function()
-                prompt_win = nil
-            end
-        })
-    end)
-
-    -- Add mappings to respond to terminal-specific keycodes for Shift+Enter
-    pcall(function()
-        -- Some terminals send these codes for Shift+Enter
-        local term_mappings = {
-            ["<F13>"] = true,         -- Some terminals
-            ["<S-x1b[13;2u>"] = true, -- Kitty terminal
-            ["<x1b[13;2u>"] = true,   -- Some xterm configurations
-            -- Add more common Shift+Enter combinations
-            ["<S-CR>"] = true,
-            ["<S-Enter>"] = true,
-            ["<C-CR>"] = true, -- Some terminals send Ctrl+Enter as Shift+Enter
-            -- Add more exotic terminal codes
-            ["<A-CR>"] = true,
-            ["<M-CR>"] = true,
-            ["<CR>kd>"] = true,
-        }
-
-        for key, _ in pairs(term_mappings) do
-            -- Try to map each potential terminal code to submit action
-            pcall(function()
-                vim.api.nvim_buf_set_keymap(prompt_buf, "i", key,
-                    "<Esc><cmd>lua require('splice.sidebar').submit_prompt()<CR>",
-                    { noremap = true, silent = true })
-                vim.api.nvim_buf_set_keymap(prompt_buf, "n", key,
-                    "<cmd>lua require('splice.sidebar').submit_prompt()<CR>",
-                    { noremap = true, silent = true })
-            end)
+    vim.api.nvim_create_autocmd("BufWinLeave", {
+        buffer = sidebar_buf,
+        callback = function()
+            sidebar_win = nil
         end
-    end)
+    })
+
+    vim.api.nvim_create_autocmd("BufWinLeave", {
+        buffer = prompt_buf,
+        callback = function()
+            prompt_win = nil
+        end
+    })
 
     -- Return focus to the appropriate window
     if config and config.focus_on_open then
@@ -903,7 +781,7 @@ open_sidebar = function()
         vim.api.nvim_set_current_win(prompt_win)
         -- Move cursor to the end of the buffer
         local line_count = vim.api.nvim_buf_line_count(prompt_buf)
-        vim.api.nvim_win_set_cursor(prompt_win, { line_count, 0 })
+        vim.api.nvim_win_set_cursor(prompt_win, {line_count, 0})
         -- Start in insert mode for immediate typing
         vim.cmd("startinsert!")
     else
@@ -915,45 +793,29 @@ open_sidebar = function()
 end
 
 close_sidebar = function()
-    -- Find all related windows
-    local sidebar_related_wins = {}
-
-    -- Find the sidebar and prompt windows
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-        if vim.api.nvim_win_is_valid(win) then
-            local buf = vim.api.nvim_win_get_buf(win)
-            if buf == sidebar_buf then
-                table.insert(sidebar_related_wins, win)
-                sidebar_win = nil
-            elseif buf == prompt_buf then
-                table.insert(sidebar_related_wins, win)
-                prompt_win = nil
-            end
-        end
+    -- First find and close the prompt window if it exists
+    if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
+        vim.api.nvim_win_close(prompt_win, false)
+        prompt_win = nil
     end
 
-    -- Save current window for later focus
-    local current_win = vim.api.nvim_get_current_win()
-    local we_are_in_sidebar = false
+    -- Then find and close the sidebar window
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == sidebar_buf then
+            -- Focus the sidebar window before closing it to prevent focus issues
+            local current_win = vim.api.nvim_get_current_win()
+            vim.api.nvim_set_current_win(win)
+            vim.cmd("close")
 
-    -- Check if we're currently in any of the sidebar-related windows
-    for _, win in ipairs(sidebar_related_wins) do
-        if win == current_win then
-            we_are_in_sidebar = true
+            -- If we were in the sidebar, Vim will automatically focus another window
+            -- If not, go back to the window we were in
+            if current_win ~= win and vim.api.nvim_win_is_valid(current_win) then
+                vim.api.nvim_set_current_win(current_win)
+            end
+
+            sidebar_win = nil
             break
         end
-    end
-
-    -- Close all sidebar-related windows
-    for _, win in ipairs(sidebar_related_wins) do
-        if vim.api.nvim_win_is_valid(win) then
-            vim.api.nvim_win_close(win, false)
-        end
-    end
-
-    -- If we weren't in the sidebar, return focus to the original window
-    if not we_are_in_sidebar and vim.api.nvim_win_is_valid(current_win) then
-        vim.api.nvim_set_current_win(current_win)
     end
 end
 
@@ -1076,11 +938,8 @@ function M.prompt_and_focus()
             open_sidebar()
         end
 
-        -- Wait briefly to ensure floating window is fully set up
-        vim.defer_fn(function()
-            -- Focus the prompt window
-            focus_prompt()
-        end, 10)
+        -- Focus the prompt window
+        focus_prompt()
     end)
 
     if not status then
@@ -1100,51 +959,34 @@ function M.submit_prompt()
         local lines = vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false)
         -- Filter out comment lines and empty lines
         local prompt_lines = {}
-        local has_content = false
-
         for _, line in ipairs(lines) do
-            -- Check if line has non-comment content
-            if not line:match("^%s*--") then
-                -- Check if line has any non-whitespace characters
-                if line:match("%S") then
-                    has_content = true
-                end
-                -- Keep all non-comment lines for the prompt
+            if not line:match("^%s*--") and line:match("%S") then
                 table.insert(prompt_lines, line)
             end
         end
 
-        -- Join all lines to create the full prompt text
-        local prompt_text = table.concat(prompt_lines, "\n")
-        -- Trim leading/trailing whitespace
-        prompt_text = prompt_text:gsub("^%s*(.-)%s*$", "%1")
-
-        if prompt_text ~= "" then
+        if #prompt_lines > 0 then
             -- Save current mode to restore later if needed
             local current_mode = vim.api.nvim_get_mode().mode
 
-            -- Submit the prompt text (use the trimmed version)
-            M.submit_prompt_text(prompt_text)
+            -- Submit the prompt text
+            M.submit_prompt_text(table.concat(prompt_lines, "\n"))
 
             -- Clear the prompt buffer for next input but keep the instructions
             vim.api.nvim_buf_set_lines(prompt_buf, 0, -1, false, {
-                "-- Type your prompt here and press Shift+Enter to submit",
+                "-- Type your prompt here and press Ctrl-S to submit",
                 "-- Press <leader>af to switch focus to the response area",
-                "-- You can also use Ctrl-S to submit",
-                "" -- Keep this empty line for user to start typing
+                ""
             })
 
             -- Move cursor to the end and start insert mode
             local line_count = vim.api.nvim_buf_line_count(prompt_buf)
             if vim.api.nvim_win_is_valid(prompt_win) then
-                vim.api.nvim_win_set_cursor(prompt_win, { line_count, 0 })
+                vim.api.nvim_win_set_cursor(prompt_win, {line_count, 0})
 
                 -- Only return to insert mode if we were in it before
                 if current_mode:match("i") then
                     vim.cmd("startinsert!")
-                else
-                    -- Focus the sidebar to see the response if we submitted in normal mode
-                    focus_sidebar()
                 end
             end
         else
@@ -1224,7 +1066,7 @@ function M.submit_prompt_text(prompt_text)
                 end
             end)
         end)
-
+        
         -- Store the request in case we need to cancel it
         pcall(function()
             if sidebar_buf and vim.api.nvim_buf_is_valid(sidebar_buf) then
@@ -1232,7 +1074,7 @@ function M.submit_prompt_text(prompt_text)
             end
         end)
     end)
-
+    
     if not status then
         vim.notify("[splice.nvim] Error processing prompt: " .. tostring(err), vim.log.levels.ERROR)
     end
@@ -1246,26 +1088,21 @@ function M.toggle_focus()
             open_sidebar()
             return
         end
-
+        
         -- Get current window
         local current_win = vim.api.nvim_get_current_win()
-
+        
         -- Toggle focus based on current window
-        if prompt_win and vim.api.nvim_win_is_valid(prompt_win) and current_win == prompt_win then
+        if prompt_win and current_win == prompt_win then
             -- Currently in prompt, switch to response area
             focus_sidebar()
-
+            
             -- Add visual cue that focus has changed
             pcall(function()
                 if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
                     -- Briefly highlight to show focus change
                     local prev_hl = vim.api.nvim_win_get_option(sidebar_win, "winhighlight") or ""
                     vim.api.nvim_win_set_option(sidebar_win, "winhighlight", "Normal:CursorLine")
-                    -- Also highlight the prompt window to show it's not focused
-                    if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
-                        vim.api.nvim_win_set_option(prompt_win, "winhighlight",
-                            "Normal:PmenuSel,EndOfBuffer:PmenuSel")
-                    end
                     vim.defer_fn(function()
                         if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
                             vim.api.nvim_win_set_option(sidebar_win, "winhighlight", prev_hl)
@@ -1273,10 +1110,10 @@ function M.toggle_focus()
                     end, 300)
                 end
             end)
-        elseif sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) and current_win == sidebar_win then
+        elseif sidebar_win and current_win == sidebar_win then
             -- Currently in sidebar, switch to prompt
             focus_prompt()
-
+            
             -- Add visual cue that focus has changed
             pcall(function()
                 if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
@@ -1298,23 +1135,12 @@ function M.toggle_focus()
             focus_sidebar()
         else
             -- As a fallback, reopen the sidebar
-            -- Use defer_fn to avoid potential race conditions
-            vim.defer_fn(function()
-                open_sidebar()
-            end, 10)
+            open_sidebar()
         end
     end)
 
     if not status then
         vim.notify("[splice.nvim] Error toggling focus: " .. tostring(err), vim.log.levels.ERROR)
-        -- Attempt recovery
-        vim.defer_fn(function()
-            pcall(function()
-                -- Try to reopen sidebar as last resort
-                close_sidebar()
-                open_sidebar()
-            end)
-        end, 100)
     end
 end
 

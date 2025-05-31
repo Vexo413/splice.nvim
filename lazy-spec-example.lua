@@ -110,10 +110,10 @@ return {
                   "Line: " .. current_line,
                   ""
                 })
-                -- Start in insert mode at the end of the buffer and remind about Shift+Enter
+                -- Start in insert mode at the end of the buffer and remind about Ctrl-S
                 vim.schedule(function()
                   vim.cmd("startinsert!")
-                  vim.notify("Type your prompt and press Shift+Enter to submit", vim.log.levels.INFO)
+                  vim.notify("Type your prompt and press Ctrl-S to submit", vim.log.levels.INFO)
                 end)
               end
         end, { buffer = true, desc = "Ask AI about current function" })
@@ -124,6 +124,6 @@ return {
   -- Add documentation for the plugin
   -- This appears in lazy.nvim's UI
   url = "https://github.com/yourusername/splice.nvim",
-  description = "AI-powered coding assistant for Neovim with Shift+Enter prompt submission",
+  description = "AI-powered coding assistant for Neovim with Ctrl-S prompt submission",
   version = "1.0.0", -- Set appropriate version
 }

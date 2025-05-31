@@ -5,13 +5,13 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 ## Features
 
 - 🧠 AI-powered code suggestions and transformations
-- 💬 Interactive chat sidebar for coding assistance with integrated prompt editor
+- 💬 Interactive chat sidebar (real split window) for coding assistance
 - 📝 Inline code completion
 - 🔄 Side-by-side diff view for AI suggestions
 - 📚 History tracking of AI interactions
 - 🔄 Session persistence
 - 🎨 Syntax highlighting for code blocks in sidebar
-- ⌨️ Integrated prompt editor with Shift+Enter or Ctrl+S submission
+- ⌨️ Integrated prompt editor with Ctrl-S submission workflow
 
 ## Screenshots
 
@@ -55,7 +55,7 @@ use {
       inline_trigger = "///",
       sidebar_width = 40,
       sidebar_position = "right", -- Can be "left" or "right"
-      focus_on_open = false,      -- Focus prompt editor when opening
+      focus_on_open = false,      -- Focus sidebar when opening
       restore_on_startup = true,  -- Restore sidebar state on startup
       highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
       history_file = vim.fn.stdpath("data") .. "/splice_history.json",
@@ -141,7 +141,7 @@ In the sidebar:
 In the integrated prompt editor:
 In the prompt editor:
 - Write your prompt in the bottom section of the sidebar
-- Press `Shift+Enter` to submit your prompt to the AI (or use `Ctrl-S` as alternative)
+- Press `Ctrl-S` to submit your prompt to the AI (or Enter in normal mode)
 - `<leader>af` or `<C-f>` (in insert mode) - Switch focus to the response area
 - `Esc` in normal mode - Switch focus to the response area
 - The editor automatically clears after submission while preserving instructions
