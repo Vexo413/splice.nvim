@@ -744,8 +744,8 @@ open_sidebar = function()
 
     -- Create a horizontal split at the bottom for the prompt area (roughly 20% of height)
     vim.api.nvim_win_call(sidebar_win, function()
-        vim.cmd("botright split") -- Explicitly create split at the bottom
-        vim.cmd("resize -10") -- Make it smaller
+        vim.cmd("set splitbelow")      -- Ensure splits go to the bottom
+        vim.cmd("resize -10")     -- Make it smaller
     end)
 
     -- Get the new window and set the prompt buffer
@@ -985,7 +985,6 @@ function M.submit_current_prompt()
         if is_prompt_valid() then
             submit_prompt()
         else
-            print("err?")
             vim.notify("[splice.nvim] Prompt buffer is not valid", vim.log.levels.WARN)
         end
     end)
