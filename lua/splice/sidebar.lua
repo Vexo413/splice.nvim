@@ -616,7 +616,7 @@ setup_prompt_buffer = function()
     vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<C-s>",
         "<cmd>lua require('splice.sidebar').submit_current_prompt()<CR>", keymap_opts)
     vim.api.nvim_buf_set_keymap(prompt_buf, "i", "<C-s>",
-        "<Esc><cmd>lua require('splice.sidebar').submit_current_prompt()<CR>", keymap_opts)
+        function() print("working") end, keymap_opts)
     -- Ctrl+L to clear prompt in both normal and insert modes
     vim.api.nvim_buf_set_keymap(prompt_buf, "n", "<C-l>", "<cmd>lua require('splice.sidebar').clear_current_prompt()<CR>",
         keymap_opts)
@@ -990,13 +990,13 @@ function M.clear_current_prompt()
             -- Move cursor to the end of the buffer
             if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
                 local line_count = vim.api.nvim_buf_line_count(prompt_buf)
-                vim.api.nvim_win_set_cursor(prompt_win, {line_count, 0})
+                vim.api.nvim_win_set_cursor(prompt_win, { line_count, 0 })
             end
         else
             vim.notify("[splice.nvim] Prompt buffer is not valid", vim.log.levels.WARN)
         end
     end)
-    
+
     if not status then
         vim.notify("[splice.nvim] Error clearing prompt: " .. tostring(err), vim.log.levels.ERROR)
     end
