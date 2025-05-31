@@ -7,7 +7,7 @@
 --   * Anthropic (Claude)
 --
 -- Features:
---   * AI chat sidebar
+--   * AI chat interface with history view and prompt editor
 --   * Inline code suggestions
 --   * Code diff/modification view
 --   * History tracking
@@ -71,11 +71,11 @@ M.config = {
     -- UI and Workflow Options
     ---------------------------------------------------------------------------
     inline_trigger = "///", -- Trigger string for inline completions
-    sidebar_width = 40,     -- Width of the AI chat sidebar in columns
-    sidebar_position = "right", -- Position of the sidebar ("left" or "right")
-    focus_on_open = false,  -- Whether to focus the sidebar when opening it
-    restore_on_startup = false, -- Whether to restore the sidebar on startup if it was open before
-    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+    sidebar_width = 40,     -- Width of the AI chat interface in columns
+    sidebar_position = "right", -- Position of the interface ("left" or "right")
+    focus_on_open = false,  -- Whether to focus the prompt when opening
+    restore_on_startup = false, -- Whether to restore the chat interface on startup if it was open before
+    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
     history_file = vim.fn.stdpath("data") .. "/splice_history.json", -- Interaction history
     session_file = vim.fn.stdpath("data") .. "/splice_session.json", -- Session state
 }
@@ -138,7 +138,7 @@ function M.setup(user_config)
     -- Initialize all components
     local modules = {
         "splice.inline",   -- Inline code suggestions
-        "splice.sidebar",  -- AI chat sidebar
+        "splice.sidebar",  -- AI chat interface with history view and prompt
         "splice.diff",     -- Code diff/modification view
         "splice.history",  -- Interaction history
         "splice.session"   -- Session state management
@@ -166,7 +166,7 @@ function M.setup(user_config)
     else
         vim.notify(
             "Splice.nvim initialized with " .. M.config.provider .. " provider\n" ..
-            "Use <leader>as to open sidebar or :SplicePrompt to start a conversation",
+            "Use <leader>as to open chat interface or :SplicePrompt to start a conversation",
             vim.log.levels.INFO
         )
     end

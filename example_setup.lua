@@ -30,7 +30,7 @@
 --
 --       -- UI and behavior options
 --       inline_trigger = "///",  -- String that triggers inline completions
---       sidebar_width = 40,      -- Width of the AI chat sidebar
+--       sidebar_width = 40,      -- Width of the AI chat interface
 --
 --       -- File paths for persistent storage
 --       history_file = vim.fn.stdpath("data") .. "/splice_history.json",
@@ -54,10 +54,10 @@ require('splice').setup({
     -- UI and behavior settings
     inline_trigger = "///",
     sidebar_width = 40,
-    sidebar_position = "right", -- Position the sidebar on the right side
-    focus_on_open = false,    -- Don't focus the sidebar when opening it
-    restore_on_startup = true, -- Restore sidebar if it was open in the last session
-    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+    sidebar_position = "right", -- Position the interface on the right side
+    focus_on_open = false,    -- Don't focus the prompt when opening
+    restore_on_startup = true, -- Restore chat interface if it was open in the last session
+    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
     -- File storage options
     history_file = vim.fn.stdpath("data") .. "/splice_history.json",
     session_file = vim.fn.stdpath("data") .. "/splice_session.json",
@@ -75,10 +75,10 @@ require('splice').setup({
 --   -- UI and behavior settings
 --   inline_trigger = "///",
 --   sidebar_width = 40,
---   sidebar_position = "right",  -- Position the sidebar on the right side
---   focus_on_open = false,       -- Don't focus the sidebar when opening it
---   restore_on_startup = true,   -- Restore sidebar if it was open in the last session
---   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+--   sidebar_position = "right",  -- Position the interface on the right side
+--   focus_on_open = false,       -- Don't focus the prompt when opening
+--   restore_on_startup = true,   -- Restore chat interface if it was open in the last session
+--   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
 -- })
 
 -- Example 3: Anthropic Claude
@@ -93,10 +93,10 @@ require('splice').setup({
 --   -- UI and behavior settings
 --   inline_trigger = "///",
 --   sidebar_width = 40,
---   sidebar_position = "left",   -- Example of positioning sidebar on the left
---   focus_on_open = true,        -- Example of focusing the sidebar when opening
---   restore_on_startup = false,  -- Example of not restoring sidebar on startup
---   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+--   sidebar_position = "left",   -- Example of positioning interface on the left
+--   focus_on_open = true,        -- Example of focusing the prompt when opening
+--   restore_on_startup = false,  -- Example of not restoring chat interface on startup
+--   highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
 -- })
 
 -- ======================================================================
@@ -108,7 +108,7 @@ require('splice').setup({
 -- 3. If experiencing issues, try :SpliceReload to reload the plugin
 -- 4. For more detailed logging, run :SpliceDebugEnable
 -- 5. To check if Ollama is accessible, run :SpliceCheckOllama
--- 6. The sidebar is now a proper Neovim split window (not a floating window)
+-- 6. The chat interface uses proper Neovim split windows (not floating windows)
 --    Use :SpliceToggle to show/hide it
 -- 7. In the prompt editor, you can submit your prompt with either:
 --    - Save command (:w)

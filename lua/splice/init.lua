@@ -25,7 +25,7 @@ M.config = {
     -- UI and workflow options
     inline_trigger = "///",
     sidebar_width = 40,
-    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+    highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
     history_file = vim.fn.stdpath("data") .. "/splice_history.json",
     session_file = vim.fn.stdpath("data") .. "/splice_session.json",
 }
@@ -38,7 +38,7 @@ function M.setup(user_config)
         -- Initialize components with proper error handling
         local components = {
             "splice.inline",
-            "splice.sidebar",
+            "splice.sidebar", -- Contains history view and prompt UI
             "splice.diff",
             "splice.history",
             "splice.session"

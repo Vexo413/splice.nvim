@@ -5,13 +5,13 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 ## Features
 
 - 🧠 AI-powered code suggestions and transformations
-- 💬 Interactive chat sidebar (real split window) for coding assistance
+- 💬 Interactive chat interface with history view and prompt editor for coding assistance
 - 📝 Inline code completion
 - 🔄 Side-by-side diff view for AI suggestions
 - 📚 History tracking of AI interactions
 - 🔄 Session persistence
-- 🎨 Syntax highlighting for code blocks in sidebar
-- ⌨️ Integrated prompt editor in sidebar for better workflow
+- 🎨 Syntax highlighting for code blocks in history view
+- ⌨️ Integrated prompt editor for better workflow
 
 ## Screenshots
 
@@ -55,9 +55,9 @@ use {
       inline_trigger = "///",
       sidebar_width = 40,
       sidebar_position = "right", -- Can be "left" or "right"
-      focus_on_open = false,      -- Focus sidebar when opening
-      restore_on_startup = true,  -- Restore sidebar state on startup
-      highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+      focus_on_open = false,      -- Focus prompt when opening
+      restore_on_startup = true,  -- Restore chat interface state on startup
+      highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
       history_file = vim.fn.stdpath("data") .. "/splice_history.json",
       session_file = vim.fn.stdpath("data") .. "/splice_session.json",
     })
@@ -99,11 +99,11 @@ require('splice').setup({
 
   -- UI and workflow options
   inline_trigger = "///", -- Trigger for inline completions
-  sidebar_width = 40,     -- Width of the AI chat sidebar
-  sidebar_position = "right", -- Position of the sidebar ("left" or "right")
-  focus_on_open = false,  -- Whether to focus the sidebar when opening it
-  restore_on_startup = false, -- Whether to restore the sidebar on startup if it was open before
-  highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in sidebar
+  sidebar_width = 40,     -- Width of the AI chat interface
+  sidebar_position = "right", -- Position of the interface ("left" or "right")
+  focus_on_open = false,  -- Whether to focus the prompt when opening
+  restore_on_startup = false, -- Whether to restore the chat interface on startup if it was open before
+  highlight_code_blocks = true, -- Enable syntax highlighting for code blocks in history view
 
   -- File paths for storing data
   history_file = vim.fn.stdpath("data") .. "/splice_history.json",
@@ -115,9 +115,9 @@ require('splice').setup({
 
 ### Commands
 
-- `:SpliceToggle` - Toggle the AI sidebar
+- `:SpliceToggle` - Toggle the AI chat interface
 - `:SplicePrompt` - Open the AI prompt input
-- `:SplicePromptFocus` - Open sidebar and focus the integrated prompt editor
+- `:SplicePromptFocus` - Open chat interface and focus the integrated prompt editor
 - `:SpliceHistory` - Show history of AI interactions
 - `:SpliceReload` - Reload the plugin (helpful for troubleshooting)
 
@@ -125,16 +125,16 @@ require('splice').setup({
 
 Default keybindings:
 
-- `<leader>as` - Toggle the AI sidebar
+- `<leader>as` - Toggle the AI chat interface
 - `<leader>ap` - Open the AI prompt input
-- `<leader>aa` - Open sidebar and focus the integrated prompt editor
-- `<leader>af` - Toggle focus between sidebar and prompt editor
+- `<leader>aa` - Open chat interface and focus the integrated prompt editor
+- `<leader>af` - Toggle focus between history view and prompt editor
 - `<leader>ai` - Trigger inline AI suggestion
 - `<leader>ah` - Show history of AI interactions
 - `<leader>ad` - (Visual mode) Generate a diff for selected code
 
-In the sidebar:
-- `q` - Close the sidebar
+In the history view:
+- `q` - Close the chat interface
 - `p` - Open the AI prompt input
 - `<leader>af` - Switch focus to the prompt editor
 
@@ -143,7 +143,7 @@ In the prompt editor:
   - Save (`:w`) to submit, or
   - Press `Ctrl+S` to submit (works in both normal and insert modes)
 - `Ctrl+L` - Clear the prompt to start fresh
-- `<leader>af` - Switch focus to the response area
+- `<leader>af` - Switch focus to the history view
 
 In diff view:
 - `<leader>da` - Accept the suggested changes
@@ -155,9 +155,9 @@ In inline suggestion mode:
 
 ### Troubleshooting
 
-#### Sidebar issues
+#### Chat interface issues
 
-If the sidebar doesn't open or behaves unexpectedly:
+If the chat interface doesn't open or behaves unexpectedly:
 
 1. Try `:SpliceReload` to reload the plugin
 2. Check that your Neovim version is compatible (0.5.0+)

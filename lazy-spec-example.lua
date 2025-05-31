@@ -8,10 +8,10 @@ return {
   
   -- Define all keymappings in the spec
   keys = {
-    { "<leader>as", desc = "Toggle AI Sidebar" },
+    { "<leader>as", desc = "Toggle AI Chat Interface" },
     { "<leader>ap", desc = "Open AI Prompt" },
-    { "<leader>aa", desc = "Open Sidebar with Integrated Prompt" },
-    { "<leader>af", desc = "Toggle Focus Between Sidebar/Prompt" },
+    { "<leader>aa", desc = "Open Chat Interface with Integrated Prompt" },
+    { "<leader>af", desc = "Toggle Focus Between History/Prompt" },
     { "<leader>ai", desc = "Inline AI Suggestion" },
     { "<leader>ah", desc = "AI History" },
     { "<leader>ad", mode = "v", desc = "AI Diff on Selection" },
@@ -71,11 +71,11 @@ return {
       -- Trigger string for inline completions (type this to trigger)
       inline_trigger = "///",
       
-      -- Sidebar appearance
+      -- Chat interface appearance
       sidebar_width = 50,              -- Width in columns
       sidebar_position = "right",      -- Can be "left" or "right"
       focus_on_open = true,            -- Focus prompt when opening with <leader>aa
-      restore_on_startup = true,       -- Restore sidebar state from last session
+      restore_on_startup = true,       -- Restore chat interface state from last session
       
       -- Code block handling
       highlight_code_blocks = true,    -- Enable syntax highlighting for code blocks
@@ -98,7 +98,7 @@ return {
           local current_file = vim.fn.expand("%:p")
           local current_line = vim.fn.line(".")
           
-          -- Open sidebar with integrated prompt
+          -- Open chat interface with integrated prompt
           require("splice.sidebar").prompt_and_focus()
           
           -- Add a pre-filled prompt
@@ -118,6 +118,6 @@ return {
   -- Add documentation for the plugin
   -- This appears in lazy.nvim's UI
   url = "https://github.com/yourusername/splice.nvim",
-  description = "AI-powered coding assistant for Neovim with integrated prompt editor",
+  description = "AI-powered coding assistant for Neovim with integrated chat interface",
   version = "1.0.0", -- Set appropriate version
 }
