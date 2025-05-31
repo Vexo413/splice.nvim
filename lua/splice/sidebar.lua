@@ -11,22 +11,29 @@ local close_sidebar
 local prompt_input
 
 -- Helper function to gather context from the editor
-local function gather_context()
-    -- Gather open buffers, LSP symbols, git status, etc.
+local function gather_context_as_text()
     local bufs = vim.api.nvim_list_bufs()
-    local buffers = {}
+    local context_lines = {}
+
     for _, b in ipairs(bufs) do
         if vim.api.nvim_buf_is_loaded(b) then
-            table.insert(buffers, {
-                name = vim.api.nvim_buf_get_name(b),
-                lines = vim.api.nvim_buf_get_lines(b, 0, -1, false),
-            })
+            local name = vim.api.nvim_buf_get_name(b)
+            local lines = vim.api.nvim_buf_get_lines(b, 0, -1, false)
+
+            -- Optional: skip empty or unnamed buffers
+            if #lines > 0 and name ~= "" then
+                table.insert(context_lines, string.format("=== %s ===", name))
+                vim.list_extend(context_lines, lines)
+                table.insert(context_lines, "") -- spacer
+            end
         end
     end
-    print(buffers[1].lines[1])
-    -- TODO: Add LSP, git, file tree context
-    return { buffers = buffers }
+    print(table.concat(context_lines, "\n"))
+
+    -- Convert to a single string
+    return table.concat(context_lines, "\n")
 end
+
 
 -- Define the render_sidebar function that updates the sidebar content
 render_sidebar = function()
@@ -286,7 +293,7 @@ function M.prompt()
         local input = vim.fn.input({ prompt = "AI prompt: " })
         if input and input ~= "" then
             -- Gather context from current buffers
-            local context = gather_context()
+            local context = gather_context_as_text()
 
             -- Add to chat history immediately to show user input
             local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
