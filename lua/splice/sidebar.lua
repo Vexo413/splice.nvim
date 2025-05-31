@@ -210,7 +210,6 @@ local function fold_think_blocks(bufnr)
             -- Fold from start to current line
             vim.api.nvim_buf_call(bufnr, function()
                 vim.opt_local.foldmethod = "manual"
-                print(string.format("%d,%dfold", start, i))
                 vim.cmd(string.format("%d,%dfold", start, i))
             end)
             start = nil
@@ -334,21 +333,23 @@ render_history = function()
 
         vim.api.nvim_buf_set_lines(history_buf, 0, -1, false, lines)
 
+        -- Automatically fold think regions
+        fold_think_blocks(history_buf)
+
         -- Apply syntax highlighting to code blocks if enabled
         if config and config.highlight_code_blocks then
-            apply_code_block_highlighting(history_buf)
+            -- apply_code_block_highlighting(history_buf)
         end
 
         -- Re-apply syntax highlighting to ensure consistent colors
         -- Use pcall to handle any potential errors with syntax highlighting
         pcall(function()
             vim.api.nvim_buf_call(history_buf, function()
-                vim.cmd("syntax on")
+                --vim.cmd("syntax on")
             end)
         end)
 
-        -- Automatically fold think regions
-        fold_think_blocks(history_buf)
+
 
         -- Set back to non-modifiable to protect content
         vim.api.nvim_buf_set_option(history_buf, "modifiable", false)
