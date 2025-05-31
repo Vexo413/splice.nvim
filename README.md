@@ -142,6 +142,7 @@ In the prompt editor:
 - Write your prompt and either:
   - Save (`:w`) to submit, or
   - Press `Ctrl+S` to submit (works in both normal and insert modes)
+- `Ctrl+L` - Clear the prompt to start fresh
 - `<leader>af` - Switch focus to the response area
 
 In diff view:
