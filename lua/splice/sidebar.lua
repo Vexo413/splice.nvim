@@ -83,7 +83,23 @@ render_sidebar = function()
             if not prompt_text or prompt_text == "" then
                 prompt_text = "[Empty prompt]"
             end
-            table.insert(lines, "You: " .. prompt_text)
+            
+            -- Handle multiline prompts by splitting them too
+            if prompt_text:find("\n") then
+                local first_line, rest = prompt_text:match("^([^\n]*)\n(.*)")
+                if first_line then
+                    table.insert(lines, "You: " .. first_line)
+                    
+                    -- Add remaining lines with indentation
+                    for line in rest:gmatch("([^\n]*)\n?") do
+                        table.insert(lines, "    " .. line)
+                    end
+                else
+                    table.insert(lines, "You: " .. prompt_text)
+                end
+            else
+                table.insert(lines, "You: " .. prompt_text)
+            end
 
             -- Format the response, handling nil values
             local response_text = entry.response
@@ -91,11 +107,32 @@ render_sidebar = function()
                 response_text = "Waiting for response..."
             end
 
-            -- Add model info if available
+            -- Add model info and prepare response prefix
+            local response_prefix
             if entry.provider and entry.model then
-                table.insert(lines, "AI (" .. entry.provider .. "/" .. entry.model .. "): " .. response_text)
+                response_prefix = "AI (" .. entry.provider .. "/" .. entry.model .. "): "
             else
-                table.insert(lines, "AI: " .. response_text)
+                response_prefix = "AI: "
+            end
+            
+            -- Handle multiline responses by splitting into separate lines
+            if response_text:find("\n") then
+                -- Add the first line with the prefix
+                local first_line, rest = response_text:match("^([^\n]*)\n(.*)")
+                if first_line then
+                    table.insert(lines, response_prefix .. first_line)
+                    
+                    -- Split remaining text into lines and add with indentation
+                    for line in rest:gmatch("([^\n]*)\n?") do
+                        table.insert(lines, "    " .. line)
+                    end
+                else
+                    -- Fallback if pattern match fails
+                    table.insert(lines, response_prefix .. response_text)
+                end
+            else
+                -- Single line response
+                table.insert(lines, response_prefix .. response_text)
             end
 
             table.insert(lines, "")
@@ -103,13 +140,21 @@ render_sidebar = function()
     end
 
     -- Safe update of buffer content with error handling
-    local ok, err = pcall(function()
-        -- Make buffer modifiable before setting lines
-        vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
-        vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
-        -- Set back to non-modifiable to protect content
-        vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
-    end)
+        local ok, err = pcall(function()
+            -- Make buffer modifiable before setting lines
+            vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
+        
+            -- Ensure all lines are valid strings (important for response handling)
+            for i, line in ipairs(lines) do
+                if type(line) ~= "string" then
+                    lines[i] = tostring(line)
+                end
+            end
+        
+            vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
+            -- Set back to non-modifiable to protect content
+            vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+        end)
     
     if not ok then
         vim.schedule(function()
@@ -130,6 +175,9 @@ local function ai_chat(prompt, context, callback)
         -- Return dummy cancel function
         return function() end
     end
+    
+    -- Pre-process prompt to ensure consistent handling
+    prompt = prompt or ""
 
     -- We don't need to add a message here - it's already added in prompt_input
     -- Just store the chat_id for tracking
@@ -206,7 +254,13 @@ local function ai_chat(prompt, context, callback)
                 entry_index = find_chat_entry()
             end
             if entry_index and entry_index <= #chat_history then
-                chat_history[entry_index].response = result.text
+                -- Store response text, ensuring it's a string
+                local response_text = result.text or ""
+                
+                -- Normalize newlines to ensure consistent rendering
+                response_text = response_text:gsub("\r\n", "\n"):gsub("\r", "\n")
+                
+                chat_history[entry_index].response = response_text
                 chat_history[entry_index].provider = result.provider
                 chat_history[entry_index].model = result.model
                 render_sidebar()
@@ -469,6 +523,9 @@ function M.prompt()
             -- Gather context from current buffers
             local context = gather_context_as_text()
 
+            -- Normalize input newlines for consistent handling
+            input = input:gsub("\r\n", "\n"):gsub("\r", "\n")
+            
             -- Add to chat history immediately to show user input
             local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
             table.insert(chat_history, {

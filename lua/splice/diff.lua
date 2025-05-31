@@ -37,10 +37,28 @@ local function show_diff(original, modified, commentary)
 
         -- Optional: show commentary as virtual text
         if commentary then
-            vim.api.nvim_buf_set_extmark(buf_mod, vim.api.nvim_create_namespace("splice_diff_comment"), 0, 0, {
-                virt_text = { { commentary, "Comment" } },
-                virt_text_pos = "eol",
-            })
+            -- Split commentary into lines if it contains newlines
+            if commentary:find("\n") then
+                local comment_lines = {}
+                for line in commentary:gmatch("([^\n]*)\n?") do
+                    table.insert(comment_lines, line)
+                end
+                
+                local comment_ns = vim.api.nvim_create_namespace("splice_diff_comment")
+                for i, line in ipairs(comment_lines) do
+                    if i <= vim.api.nvim_buf_line_count(buf_mod) and line ~= "" then
+                        vim.api.nvim_buf_set_extmark(buf_mod, comment_ns, i-1, 0, {
+                            virt_text = { { line, "Comment" } },
+                            virt_text_pos = "eol",
+                        })
+                    end
+                end
+            else
+                vim.api.nvim_buf_set_extmark(buf_mod, vim.api.nvim_create_namespace("splice_diff_comment"), 0, 0, {
+                    virt_text = { { commentary, "Comment" } },
+                    virt_text_pos = "eol",
+                })
+            end
         end
 
         -- Keymaps for accept/reject
@@ -94,7 +112,7 @@ local function fetch_ai_diff(prompt, context, cb)
     local specialized_prompt = [[
 You are a code modification assistant. I will provide code and a modification request.
 Your task is to return the modified version of the code that fulfills the request.
-Only return the modified code without additional explanations.
+Only return the modified code without additional explanations or markdown formatting.
 
 Original code:
 ```
@@ -148,6 +166,9 @@ Modified code:
         -- Process the response text into lines
         local response_text = result.text
 
+        -- Normalize newlines in the response
+        response_text = response_text:gsub("\r\n", "\n"):gsub("\r", "\n")
+
         -- Clean up the response by removing markdown code blocks if present
         response_text = response_text:gsub("```[%w%+%-_]*\n", ""):gsub("```", "")
 
@@ -174,7 +195,7 @@ Modified code:
 
         -- Create a commentary
         local commentary = "Changes suggested by " .. (result.provider or "AI") .. (result.model and ("/" .. result.model) or "") ..
-                           " based on: " .. prompt
+                           " based on: " .. prompt:gsub("\r\n", "\n"):gsub("\r", "\n")
 
         -- Save to history only on final output
         if not result.streaming then
@@ -207,6 +228,10 @@ end
 function M.request_diff(prompt, context)
     local ok, err = pcall(function()
         fetch_ai_diff(prompt, context, function(orig, mod, commentary)
+            -- Normalize newlines in commentary
+            if commentary then
+                commentary = commentary:gsub("\r\n", "\n"):gsub("\r", "\n")
+            end
             show_diff(orig, mod, commentary)
         end)
     end)

@@ -114,13 +114,21 @@ function M.ollama_request(opts, callback)
                     end
                 end
                 
-                if content == "" then
+                -- Normalize newlines in content
+                if content and content ~= "" then
+                    content = content:gsub("\r\n", "\n"):gsub("\r", "\n")
+                else
                     safe_callback(nil, "Failed to extract content from Ollama response")
                     return
                 end
                 
+                -- Process the text to handle escaping and cleanup
+                local processed_text = content
+                -- Unescape any escaped quotes or special characters in JSON response
+                processed_text = processed_text:gsub("\\\"", "\""):gsub("\\n", "\n"):gsub("\\t", "\t")
+                
                 safe_callback({
-                    text = content,
+                    text = processed_text,
                     model = model,
                     provider = "ollama",
                     raw_response = res.body,
@@ -158,9 +166,16 @@ function M.openai_request(_, callback)
     -- Store callback in a safe upvalue
     local safe_callback = callback
     
+    -- Provide a consistent error response
+    local error_msg = "OpenAI requests are not implemented in this build. Only Ollama is supported."
     vim.schedule(function()
         if type(safe_callback) == "function" then
-            safe_callback(nil, "OpenAI requests are not implemented in this build. Only Ollama is supported.")
+            safe_callback({
+                text = error_msg,
+                provider = "openai",
+                error = true,
+                streaming = false
+            }, error_msg)
         end
     end)
     
@@ -183,9 +198,16 @@ function M.anthropic_request(_, callback)
     -- Store callback in a safe upvalue
     local safe_callback = callback
     
+    -- Provide a consistent error response
+    local error_msg = "Anthropic requests are not implemented in this build. Only Ollama is supported."
     vim.schedule(function()
         if type(safe_callback) == "function" then
-            safe_callback(nil, "Anthropic requests are not implemented in this build. Only Ollama is supported.")
+            safe_callback({
+                text = error_msg,
+                provider = "anthropic",
+                error = true,
+                streaming = false
+            }, error_msg)
         end
     end)
     
@@ -218,9 +240,16 @@ function M.ai_request(opts, callback)
     elseif provider == "anthropic" then
         return M.anthropic_request(opts, safe_callback)
     else
+        -- Provide a consistent error response for unknown providers
+        local error_msg = "Unknown provider: " .. tostring(provider)
         vim.schedule(function()
             if type(safe_callback) == "function" then
-                safe_callback(nil, "Unknown provider: " .. tostring(provider))
+                safe_callback({
+                    text = error_msg,
+                    provider = provider or "unknown",
+                    error = true,
+                    streaming = false
+                }, error_msg)
             end
         end)
         return {
