@@ -4,6 +4,13 @@ local sidebar_buf, sidebar_win
 local chat_history = {}
 local http = require('splice.http')
 
+-- Forward declarations for functions that need to be referenced before definition
+local render_sidebar
+local open_sidebar
+local close_sidebar
+local prompt_input
+
+-- Helper function to gather context from the editor
 local function gather_context()
     -- Gather open buffers, LSP symbols, git status, etc.
     local bufs = vim.api.nvim_list_bufs()
@@ -20,20 +27,62 @@ local function gather_context()
     return { buffers = buffers }
 end
 
+-- Define the render_sidebar function that updates the sidebar content
+render_sidebar = function()
+    if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
+        sidebar_buf = vim.api.nvim_create_buf(false, true)
+    end
+    local lines = {}
+
+    if #chat_history == 0 then
+        lines = { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" }
+    else
+        for _, entry in ipairs(chat_history) do
+            -- Format the prompt, handling nil values
+            local prompt_text = entry.prompt
+            if not prompt_text or prompt_text == "" then
+                prompt_text = "[Empty prompt]"
+            end
+            table.insert(lines, "You: " .. prompt_text)
+
+            -- Format the response, handling nil values
+            local response_text = entry.response
+            if not response_text or response_text == "" then
+                response_text = "Waiting for response..."
+            end
+
+            -- Add model info if available
+            if entry.provider and entry.model then
+                table.insert(lines, "AI (" .. entry.provider .. "/" .. entry.model .. "): " .. response_text)
+            else
+                table.insert(lines, "AI: " .. response_text)
+            end
+
+            table.insert(lines, "")
+        end
+    end
+
+    -- Make buffer modifiable before setting lines
+    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
+    vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
+    -- Set back to non-modifiable to protect content
+    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+end
+
 local function ai_chat(prompt, context, cb)
     -- Generate a unique ID for this chat entry to track it
     local chat_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
-    
+
     -- Status message in sidebar while waiting for response
     vim.schedule(function()
-        table.insert(chat_history, { 
+        table.insert(chat_history, {
             id = chat_id,
-            prompt = prompt, 
-            response = "Thinking..." 
+            prompt = prompt,
+            response = "Thinking..."
         })
         render_sidebar()
     end)
-    
+
     -- Find our entry in the chat history
     local function find_chat_entry()
         for i, entry in ipairs(chat_history) do
@@ -43,7 +92,7 @@ local function ai_chat(prompt, context, cb)
         end
         return nil
     end
-    
+
     -- Call the actual AI provider through our HTTP client
     local request = http.ai_request({
         config = config,
@@ -56,14 +105,14 @@ local function ai_chat(prompt, context, cb)
             vim.schedule(function()
                 local error_message = "Error: " .. (err or "Unknown error")
                 vim.notify("AI request failed: " .. err, vim.log.levels.ERROR)
-                
+
                 -- Find and update our chat entry instead of removing it
                 local entry_index = find_chat_entry()
                 if entry_index then
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                
+
                 -- Call the callback with the error message
                 if type(cb) == "function" then
                     cb(error_message)
@@ -71,20 +120,20 @@ local function ai_chat(prompt, context, cb)
             end)
             return
         end
-        
+
         -- Ensure we have a valid result with text
         if not result or not result.text then
             vim.schedule(function()
                 local error_message = "Error: Empty response from AI provider"
                 vim.notify(error_message, vim.log.levels.ERROR)
-                
+
                 -- Find and update our chat entry
                 local entry_index = find_chat_entry()
                 if entry_index then
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                
+
                 -- Call the callback with the error message
                 if type(cb) == "function" then
                     cb(error_message)
@@ -92,7 +141,7 @@ local function ai_chat(prompt, context, cb)
             end)
             return
         end
-        
+
         -- Process successful response
         vim.schedule(function()
             -- Find and update our chat entry
@@ -103,12 +152,12 @@ local function ai_chat(prompt, context, cb)
                 chat_history[entry_index].model = result.model
                 render_sidebar()
             end
-            
+
             -- Call the callback with the result text
             if type(cb) == "function" then
                 cb(result.text)
             end
-            
+
             -- Save the interaction to history module if available
             pcall(function()
                 local history_module = require('splice.history')
@@ -124,7 +173,7 @@ local function ai_chat(prompt, context, cb)
             end)
         end)
     end)
-    
+
     -- Return a cancel function
     return function()
         if request and request.cancel then
@@ -133,63 +182,22 @@ local function ai_chat(prompt, context, cb)
     end
 end
 
-local function render_sidebar()
-    if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
-        sidebar_buf = vim.api.nvim_create_buf(false, true)
-    end
-    local lines = {}
-    
-    if #chat_history == 0 then
-        lines = {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"}
-    else
-        for _, entry in ipairs(chat_history) do
-            -- Format the prompt, handling nil values
-            local prompt_text = entry.prompt
-            if not prompt_text or prompt_text == "" then
-                prompt_text = "[Empty prompt]"
-            end
-            table.insert(lines, "You: " .. prompt_text)
-            
-            -- Format the response, handling nil values
-            local response_text = entry.response
-            if not response_text or response_text == "" then
-                response_text = "Waiting for response..."
-            end
-            
-            -- Add model info if available
-            if entry.provider and entry.model then
-                table.insert(lines, "AI (" .. entry.provider .. "/" .. entry.model .. "): " .. response_text)
-            else
-                table.insert(lines, "AI: " .. response_text)
-            end
-            
-            table.insert(lines, "")
-        end
-    end
-    
-    -- Make buffer modifiable before setting lines
-    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", true)
-    vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
-    -- Set back to non-modifiable to protect content
-    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
-end
-
-local function open_sidebar()
+open_sidebar = function()
     -- Make sure the buffer exists and is valid
     if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
         sidebar_buf = vim.api.nvim_create_buf(false, true)
         render_sidebar()
     end
-    
+
     -- If window exists, focus it
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         vim.api.nvim_set_current_win(sidebar_win)
         return
     end
-    
+
     -- Get config with defaults
     local width = (config and config.sidebar_width) or 40
-    
+
     -- Create the window
     sidebar_win = vim.api.nvim_open_win(sidebar_buf, true, {
         relative = "editor",
@@ -201,48 +209,49 @@ local function open_sidebar()
         border = "rounded",
         title = "Splice AI",
     })
-    
+
     -- Set buffer options after rendering
     vim.api.nvim_buf_set_option(sidebar_buf, "filetype", "markdown")
-    
+
     render_sidebar()
     -- We don't need to set modifiable to false here as render_sidebar already does that
 end
 
-local function close_sidebar()
+close_sidebar = function()
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         vim.api.nvim_win_close(sidebar_win, true)
         sidebar_win = nil
     end
 end
 
-local function prompt_input()
+prompt_input = function()
     vim.ui.input({ prompt = "AI prompt: " }, function(input)
         if not input or input == "" then return end
-        
+
         -- Gather context from current buffers
         local context = gather_context()
-        
+
         -- Add to chat history immediately to show user input
-        table.insert(chat_history, { 
-            prompt = input, 
-            response = "Waiting for response..." 
+        table.insert(chat_history, {
+            prompt = input,
+            response = "Waiting for response..."
         })
         render_sidebar()
-        
+
         -- Make the AI request
         local cancel_request = ai_chat(input, context, function(response)
             -- The response handling is now done in the ai_chat function
             -- We just need to make sure the sidebar is updated
             render_sidebar()
         end)
-        
+
         -- Add a way to cancel the request if needed
         -- (This could be hooked up to a keybinding or command)
         vim.api.nvim_buf_set_var(sidebar_buf, "cancel_current_request", cancel_request)
     end)
 end
 
+-- Module API functions
 function M.setup(cfg)
     config = cfg or {}
     -- Initialize the sidebar buffer on setup
