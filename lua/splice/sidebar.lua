@@ -531,8 +531,12 @@ local function submit_prompt()
         -- 2. Have at least one non-whitespace character
         local is_comment = line:match("^%s*--")
         local has_content = line:match("%S")
-        if not is_comment and has_content then
-            table.insert(prompt_lines, line)
+        if not is_comment then
+            print("no comment")
+            if has_content then
+                print("has content")
+                table.insert(prompt_lines, line)
+            end
         end
     end
 
@@ -1002,7 +1006,7 @@ function M.clear_current_prompt()
             -- Move cursor to the end of the buffer
             if prompt_win and vim.api.nvim_win_is_valid(prompt_win) then
                 local line_count = vim.api.nvim_buf_line_count(prompt_buf)
-                vim.api.nvim_win_set_cursor(prompt_win, {line_count, 0})
+                vim.api.nvim_win_set_cursor(prompt_win, { line_count, 0 })
                 -- Debugging info
                 -- vim.notify("Prompt buffer has " .. line_count .. " lines", vim.log.levels.INFO)
             end
