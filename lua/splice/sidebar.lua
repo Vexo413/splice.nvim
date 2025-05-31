@@ -103,11 +103,12 @@ local function ai_chat(prompt, context, cb)
         timeout = 120000, -- Increase timeout to 2 minutes for Ollama
     }, function(result, err)
         if err then
+            print("error")
             -- Handle error
             vim.schedule(function()
                 local error_message = "Error: " .. (err or "Unknown error")
                 vim.notify("AI request failed: " .. err, vim.log.levels.ERROR)
-                
+
                 -- Use the entry_index we saved earlier, or find it if not available
                 if not entry_index then
                     entry_index = find_chat_entry()
@@ -116,7 +117,7 @@ local function ai_chat(prompt, context, cb)
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                
+
                 -- Call the callback with the error message
                 if type(cb) == "function" then
                     cb(error_message)
@@ -127,10 +128,11 @@ local function ai_chat(prompt, context, cb)
 
         -- Ensure we have a valid result with text
         if not result or not result.text then
+            print("empty")
             vim.schedule(function()
                 local error_message = "Error: Empty response from AI provider"
                 vim.notify(error_message, vim.log.levels.ERROR)
-                
+
                 -- Use the entry_index we saved earlier, or find it if not available
                 if not entry_index then
                     entry_index = find_chat_entry()
@@ -139,7 +141,7 @@ local function ai_chat(prompt, context, cb)
                     chat_history[entry_index].response = error_message
                     render_sidebar()
                 end
-                
+
                 -- Call the callback with the error message
                 if type(cb) == "function" then
                     cb(error_message)
@@ -150,6 +152,7 @@ local function ai_chat(prompt, context, cb)
 
         -- Process successful response
         vim.schedule(function()
+            print("yay")
             -- Use the entry_index we saved earlier, or find it if not available
             if not entry_index then
                 entry_index = find_chat_entry()
@@ -246,9 +249,10 @@ function M.setup(cfg)
     if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
         sidebar_buf = vim.api.nvim_create_buf(false, true)
         -- Buffer is modifiable by default when created
-        vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"})
+        vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false,
+            { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" })
     end
-    
+
     vim.api.nvim_set_keymap("n", "<leader>as", "<cmd>lua require('splice.sidebar').toggle()<CR>",
         { noremap = true, silent = true })
     vim.api.nvim_set_keymap("n", "<leader>ap", "<cmd>lua require('splice.sidebar').prompt()<CR>",
@@ -272,20 +276,17 @@ function M.prompt()
         if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
             sidebar_buf = vim.api.nvim_create_buf(false, true)
             -- Buffer is modifiable by default when created
-            vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"})
+            vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false,
+                { "Splice AI Sidebar", "", "Use <leader>ap to start a conversation" })
         end
-        
+
         open_sidebar()
-        
-        -- Show status message
-        vim.api.nvim_echo({{"Enter your AI prompt below:", "Normal"}}, false, {})
-        
         -- Use vim.fn.input instead of vim.ui.input to avoid potential double-trigger issues
-        local input = vim.fn.input({prompt = "AI prompt: "})
+        local input = vim.fn.input({ prompt = "AI prompt: " })
         if input and input ~= "" then
             -- Gather context from current buffers
             local context = gather_context()
-            
+
             -- Add to chat history immediately to show user input
             local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
             table.insert(chat_history, {
@@ -294,21 +295,21 @@ function M.prompt()
                 response = "Waiting for response..."
             })
             render_sidebar()
-            
+
             -- Make the AI request
             local cancel_request = ai_chat(input, context, function(response)
                 -- The response handling is now done in the ai_chat function
                 -- We just need to make sure the sidebar is updated
                 render_sidebar()
             end)
-            
+
             -- Add a way to cancel the request if needed
             if sidebar_buf and vim.api.nvim_buf_is_valid(sidebar_buf) then
                 vim.api.nvim_buf_set_var(sidebar_buf, "cancel_current_request", cancel_request)
             end
         end
     end)
-    
+
     if not status then
         vim.notify("Error opening prompt: " .. tostring(err), vim.log.levels.ERROR)
     end
