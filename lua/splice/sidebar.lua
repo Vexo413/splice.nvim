@@ -85,22 +85,37 @@ local function render_sidebar()
         sidebar_buf = vim.api.nvim_create_buf(false, true)
     end
     local lines = {}
-    for _, entry in ipairs(chat_history) do
-        table.insert(lines, "You: " .. entry.prompt)
-        table.insert(lines, "AI: " .. entry.response)
-        table.insert(lines, "")
+    
+    if #chat_history == 0 then
+        lines = {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"}
+    else
+        for _, entry in ipairs(chat_history) do
+            table.insert(lines, "You: " .. entry.prompt)
+            table.insert(lines, "AI: " .. entry.response)
+            table.insert(lines, "")
+        end
     end
+    
     vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, lines)
-    print("RENDERED")
 end
 
 local function open_sidebar()
+    -- Make sure the buffer exists and is valid
+    if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
+        sidebar_buf = vim.api.nvim_create_buf(false, true)
+        render_sidebar()
+    end
+    
+    -- If window exists, focus it
     if sidebar_win and vim.api.nvim_win_is_valid(sidebar_win) then
         vim.api.nvim_set_current_win(sidebar_win)
         return
     end
-    print("thingy 1")
-    local width = config.sidebar_width or 40
+    
+    -- Get config with defaults
+    local width = (config and config.sidebar_width) or 40
+    
+    -- Create the window
     sidebar_win = vim.api.nvim_open_win(sidebar_buf, true, {
         relative = "editor",
         width = width,
@@ -109,8 +124,13 @@ local function open_sidebar()
         col = vim.o.columns - width - 2,
         style = "minimal",
         border = "rounded",
+        title = "Splice AI",
     })
-    print("thingy 2")
+    
+    -- Set buffer options
+    vim.api.nvim_buf_set_option(sidebar_buf, "modifiable", false)
+    vim.api.nvim_buf_set_option(sidebar_buf, "filetype", "markdown")
+    
     render_sidebar()
 end
 
@@ -133,7 +153,13 @@ local function prompt_input()
 end
 
 function M.setup(cfg)
-    config = cfg
+    config = cfg or {}
+    -- Initialize the sidebar buffer on setup
+    if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
+        sidebar_buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"})
+    end
+    
     vim.api.nvim_set_keymap("n", "<leader>as", "<cmd>lua require('splice.sidebar').toggle()<CR>",
         { noremap = true, silent = true })
     vim.api.nvim_set_keymap("n", "<leader>ap", "<cmd>lua require('splice.sidebar').prompt()<CR>",
@@ -154,8 +180,20 @@ function M.toggle()
 end
 
 function M.prompt()
-    open_sidebar()
-    prompt_input()
+    local status, err = pcall(function()
+        -- Ensure sidebar buffer exists
+        if not sidebar_buf or not vim.api.nvim_buf_is_valid(sidebar_buf) then
+            sidebar_buf = vim.api.nvim_create_buf(false, true)
+            vim.api.nvim_buf_set_lines(sidebar_buf, 0, -1, false, {"Splice AI Sidebar", "", "Use <leader>ap to start a conversation"})
+        end
+        
+        open_sidebar()
+        prompt_input()
+    end)
+    
+    if not status then
+        vim.notify("Error opening prompt: " .. tostring(err), vim.log.levels.ERROR)
+    end
 end
 
 return M
