@@ -523,6 +523,7 @@ end
 -- Function to submit the prompt content
 local function submit_prompt()
     local lines = vim.api.nvim_buf_get_lines(prompt_buf, 0, -1, false)
+    print("hello 1")
     -- Filter out comment lines and empty lines
     local prompt_lines = {}
     for _, line in ipairs(lines) do
@@ -531,10 +532,13 @@ local function submit_prompt()
         end
     end
 
+    print("hello 2")
+
     if #prompt_lines > 0 then
         local prompt_text = table.concat(prompt_lines, "\n")
         -- Submit the prompt
         local context = gather_context_as_text()
+        print("hello 3")
 
         -- Add to chat history immediately to show user input
         local msg_id = tostring(os.time()) .. "_" .. math.random(1000, 9999)
@@ -544,14 +548,17 @@ local function submit_prompt()
             response = "Waiting for response..."
         })
         render_sidebar()
+        print("hello 4")
 
         -- Switch focus to the sidebar to see the response
         focus_sidebar()
 
+        print("hello 5")
         -- Make the AI request
         ai_chat(prompt_text, context, function()
             render_sidebar()
         end)
+        print("hello 6")
 
         -- Clear the prompt buffer for next input but keep the instructions
         clear_prompt_buffer()
@@ -971,7 +978,6 @@ end
 function M.submit_current_prompt()
     local status, err = pcall(function()
         if is_prompt_valid() then
-            print("hello?")
             submit_prompt()
         else
             print("err?")
