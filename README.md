@@ -11,7 +11,7 @@ A Neovim plugin for AI-powered coding assistance, integrating seamlessly with Ol
 - 📚 History tracking of AI interactions
 - 🔄 Session persistence
 - 🎨 Syntax highlighting for code blocks in sidebar
-- ⌨️ Integrated prompt editor with Ctrl-S submission workflow
+⌨️ Integrated prompt editor with Shift+Enter submission workflow
 
 ## Screenshots
 
@@ -141,7 +141,7 @@ In the sidebar:
 In the integrated prompt editor:
 In the prompt editor:
 - Write your prompt in the bottom section of the sidebar
-- Press `Ctrl-S` to submit your prompt to the AI (or Enter in normal mode)
+- Press `Shift+Enter` to submit your prompt to the AI (or Enter in normal mode)
 - `<leader>af` or `<C-f>` (in insert mode) - Switch focus to the response area
 - `Esc` in normal mode - Switch focus to the response area
 - The editor automatically clears after submission while preserving instructions
